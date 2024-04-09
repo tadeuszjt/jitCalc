@@ -33,10 +33,14 @@ std::vector<Token> lexTokens(std::string& str) {
         it = result.value().rest;
     }
 
-    return tokens;
+    if (it == str.end()) {
+        return tokens;
+    } else {
+        return {};
+    }
 }
 
-LexResult lexNumber(std::string::iterator begin, std::string::iterator end) {
+LexResult lexInteger(std::string::iterator begin, std::string::iterator end) {
     std::string::iterator it;
     for (it = begin; it != end && isdigit(*it); it++) {
     }
@@ -48,6 +52,30 @@ LexResult lexNumber(std::string::iterator begin, std::string::iterator end) {
     return std::nullopt;
 }
 
+LexResult lexFloating(std::string::iterator begin, std::string::iterator end) {
+    std::string::iterator it = begin;
+
+    // must start with digit
+    if (it == end || !isdigit(*it)) {
+        return std::nullopt;
+    }
+
+    // consume all digits
+    for (; it != end && isdigit(*it); it++) {
+    }
+
+    // consume '.'
+    if (it == end || *it != '.') {
+        return std::nullopt;
+    }
+    it++;
+
+    // consume any more digits
+    for (; it != end && isdigit(*it); it++) {
+    }
+
+    return LexSuccess(it, TokenFloat{std::stod(std::string(begin, it))});
+}
 
 LexResult lexIdent(std::string::iterator begin, std::string::iterator end) {
     std::string::iterator it = begin;
@@ -85,14 +113,19 @@ LexResult lexSymbol(std::string::iterator begin, std::string::iterator end) {
 
 
 LexResult lexAny(std::string::iterator begin, std::string::iterator end) {
+    auto floating = lexFloating(begin, end);
+    if (floating.has_value()) {
+        return floating;
+    }
+
+    auto integer = lexInteger(begin, end);
+    if (integer.has_value()) {
+        return integer;
+    }
+
     auto symbol = lexSymbol(begin, end);
     if (symbol.has_value()) {
         return symbol;
-    }
-
-    auto number = lexNumber(begin, end);
-    if (number.has_value()) {
-        return number;
     }
 
     auto ident = lexIdent(begin, end);

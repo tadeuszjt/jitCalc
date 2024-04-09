@@ -108,6 +108,12 @@ Value *emitExpression(IRBuilder<> &builder, ast::Expr &expr) {
     case ast::Expr::TYPE_INTEGER: return builder.getInt32(expr.getInteger());
     case ast::Expr::TYPE_INFIX:   return emitInfix(builder, expr.getInfix());
     case ast::Expr::TYPE_PREFIX:  return emitPrefix(builder, expr.getPrefix());
+    case ast::Expr::TYPE_FLOATING: 
+        {
+            Constant *floating = ConstantFP::get(builder.getFloatTy(), expr.getFloating());
+            return builder.CreateFPCast(floating, builder.getFloatTy());
+            break;
+        }
     case ast::Expr::TYPE_CALL:
         {
             auto call = expr.getCall();

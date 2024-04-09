@@ -22,13 +22,15 @@ ast::Expr *bisonParseResult = nullptr;
 // union defines the yy::parser::semantic_type
 %union {
     int integer;
+    double floating;
     ast::Expr *expr;
     std::string *ident;
 }
 
 // INTEGER token type uses the 'integer' field from the union
-%token <integer> INTEGER
-%token <ident>   IDENT
+%token <integer>  INTEGER
+%token <ident>    IDENT
+%token <floating> FLOATING
 
 %token '(' ')'
 %token '+' '-' '*' '/'
@@ -47,6 +49,7 @@ program: expression { assert(bisonParseResult == nullptr); bisonParseResult = $1
 
 expression
     : INTEGER                   { $$ = new ast::Expr(ast::Integer{$1}); }
+    | FLOATING                  { $$ = new ast::Expr(ast::Floating{$1}); }
     | IDENT '(' ')'             { $$ = new ast::Expr(ast::Call(*$1)); delete $1; }
     | '(' expression ')'        { $$ = $2; }
     | '-' expression            { $$ = new ast::Expr(ast::Prefix('-', *$2)); delete $2; }

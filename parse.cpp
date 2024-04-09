@@ -21,6 +21,11 @@ int yylex(yy::parser::semantic_type *un) {
         return yy::parser::token::INTEGER;
     }
 
+    if (std::holds_alternative<TokenFloat>(token)) {
+        un->floating = std::get<TokenFloat>(token);
+        return yy::parser::token::FLOATING;
+    }
+
     if (std::holds_alternative<TokenSymbol>(token)) {
         return std::get<TokenSymbol>(token);
     }
@@ -30,7 +35,7 @@ int yylex(yy::parser::semantic_type *un) {
         return yy::parser::token::IDENT;
     }
 
-    assert (false);
+    assert(false);
 }
 
 ast::Expr parse(std::string& text) {
@@ -40,9 +45,12 @@ ast::Expr parse(std::string& text) {
     yy::parser parser;
     parser.parse();
 
-    assert(bisonParseResult != nullptr);
-    auto result = *bisonParseResult;
-    delete bisonParseResult;
-    bisonParseResult = nullptr;
-    return result;
+    if (bisonParseResult != nullptr) {
+        auto result = *bisonParseResult;
+        delete bisonParseResult;
+        bisonParseResult = nullptr;
+        return result;
+    } else {
+        assert(false);
+    }
 }
