@@ -15,6 +15,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 # include directories to find header files
 include_directories(lexer)
 include_directories(parser)
+include_directories(codegen)
 include_directories(.)
 
 # make sure bison is installed and provide grammar file
@@ -29,7 +30,7 @@ add_custom_command(
 )
 
 # create executable from sources
-add_executable(jitCalc main.cpp parse.cpp lexer/lexer.cpp parser/ast.cpp ${BISON_OUTPUT})
+add_executable(jitCalc main.cpp parse.cpp lexer/lexer.cpp parser/ast.cpp codegen/emit.cpp ${BISON_OUTPUT})
 
 # make sure llvm is installed
 find_package(LLVM REQUIRED CONFIG)

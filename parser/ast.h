@@ -8,64 +8,74 @@
 // defines the AST as several types. Provides the << operator to print to std::cout.
 namespace ast {
 
-struct EExpression;
+struct Expr;
 
 using Symbol = char;
 using Integer = int;
 
 struct Infix {
-    std::unique_ptr<EExpression> left, right;
+    std::unique_ptr<Expr> left, right;
     Symbol symbol;
 
     Infix(const Infix& infix) :
-        left(std::make_unique<EExpression>(*infix.left)),
-        right(std::make_unique<EExpression>(*infix.right)),
+        left(std::make_unique<Expr>(*infix.left)),
+        right(std::make_unique<Expr>(*infix.right)),
         symbol(infix.symbol)
     {}
 
-    Infix(const EExpression& left, Symbol symbol, const EExpression& right) :
-        left(std::make_unique<EExpression>(left)),
-        right(std::make_unique<EExpression>(right)),
+    Infix(const Expr& left, Symbol symbol, const Expr& right) :
+        left(std::make_unique<Expr>(left)),
+        right(std::make_unique<Expr>(right)),
         symbol(symbol)
     {}
 };
 
 struct Prefix {
-    std::unique_ptr<EExpression> right;
+    std::unique_ptr<Expr> right;
     Symbol symbol;
 
     Prefix(const Prefix& prefix) :
-        right(std::make_unique<EExpression>(*prefix.right)),
+        right(std::make_unique<Expr>(*prefix.right)),
         symbol(prefix.symbol)
     {}
 
-    Prefix(Symbol symbol, const EExpression& right) :
-        right(std::make_unique<EExpression>(right)),
+    Prefix(Symbol symbol, const Expr& right) :
+        right(std::make_unique<Expr>(right)),
         symbol(symbol)
     {}
 };
 
+struct Call {
+    std::string name;
 
-struct EExpression {
+    Call(const Call& call) : name(call.name) {}
+    Call(const std::string& name) : name(name) {}
+};
+
+
+struct Expr {
     using Type = enum {
         TYPE_INFIX,
         TYPE_PREFIX,
-        TYPE_INTEGER
+        TYPE_INTEGER,
+        TYPE_CALL
     };
 
-    EExpression(const Infix &x) : t(TYPE_INFIX), variant(x) { }
-    EExpression(const Prefix &x) : t(TYPE_PREFIX), variant(x) { }
-    EExpression(const Integer &x) : t(TYPE_INTEGER), variant(x) { }
-    EExpression(const EExpression &x) : t(x.type()), variant(x.variant) {}
+    Expr(const Infix &x) : t(TYPE_INFIX), variant(x) { }
+    Expr(const Prefix &x) : t(TYPE_PREFIX), variant(x) { }
+    Expr(const Integer &x) : t(TYPE_INTEGER), variant(x) { }
+    Expr(const Call &x) : t(TYPE_CALL), variant(x) { }
+    Expr(const Expr &x) : t(x.type()), variant(x.variant) {}
 
     Type type() const { return t; }
     const Infix& getInfix() const { return std::get<Infix>(variant); }
     const Prefix& getPrefix() const { return std::get<Prefix>(variant); }
     const Integer& getInteger() const { return std::get<Integer>(variant); }
+    const Call& getCall() const { return std::get<Call>(variant); }
 
 private:
     Type t;
-    std::variant<Infix, Prefix, Integer> variant; 
+    std::variant<Infix, Prefix, Integer, Call> variant; 
 };
 
 }

@@ -4,4 +4,4 @@
 #include <string>
 
 // provides a simple interface for the bison parser and custom lexer.
-ast::EExpression parse(std::string& text);
+ast::Expr parse(std::string& text);

@@ -4,6 +4,7 @@
 
 #include <iostream>
 #include <cassert>
+#include <cmath>
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Constants.h>
@@ -19,6 +20,7 @@
 #include "lexer.h"
 #include "ast.h"
 #include "parse.h"
+#include "emit.h"
 #include "grammar.tab.hh"
 
 using namespace llvm;
@@ -31,55 +33,6 @@ Function* createMainFunction(Module *M, LLVMContext &context) {
 
     Function *MainFn = Function::Create(MainFnType, Function::ExternalLinkage, "main", M);
     return MainFn;
-}
-
-static void emitReturn(LLVMContext &context, BasicBlock *BB, Value *value) { 
-    ReturnInst::Create(context, value, BB);
-}
-
-static void emitPrint(LLVMContext &context, BasicBlock *BB, Value *value) {
-}
-
-
-static Value *emitExpression(IRBuilder<> &builder, ast::EExpression &expr) {
-
-    switch (expr.type()) {
-    case ast::EExpression::TYPE_INTEGER: return builder.getInt32(expr.getInteger());
-    case ast::EExpression::TYPE_INFIX:
-        {
-            auto infix = expr.getInfix();
-            auto *left = emitExpression(builder, *infix.left);
-            auto *right = emitExpression(builder, *infix.right);
-
-            switch (infix.symbol) { 
-            case '+': return builder.CreateAdd(left, right,  "infix");
-            case '-': return builder.CreateSub(left, right,  "infix");
-            case '*': return builder.CreateMul(left, right,  "infix");
-            case '/': return builder.CreateSDiv(left, right, "infix");
-            default: assert(false); break;
-            }
-
-            break;
-        }
-    case ast::EExpression::TYPE_PREFIX:
-        {
-            auto prefix = expr.getPrefix();
-            auto *right = emitExpression(builder, *prefix.right);
-            auto *zero  = builder.getInt32(0);
-
-            switch (prefix.symbol) { 
-            case '-': return builder.CreateSub(zero, right,  "prefix");
-            default: assert(false); break;
-            }
-
-            break;
-        }
-    default: assert(false); break;
-    }
-                                            
-
-    assert(false);
-    return nullptr;
 }
 
 
@@ -103,18 +56,23 @@ int main(int argc, char **argv) {
         Module *mod = owner.get();
         IRBuilder<> builder(context);
 
+        // Declare the printf function
+        FunctionType* printfType = FunctionType::get(builder.getInt32Ty(), {builder.getPtrTy()}, true);
+        Function* printfFunc = Function::Create(printfType, Function::ExternalLinkage, "printf", mod);
+
+
         auto *mainFn = createMainFunction(mod, context);
         BasicBlock *basicBlock = BasicBlock::Create(context, "EntryBlock", mainFn);
         builder.SetInsertPoint(basicBlock);
-
         auto *value = emitExpression(builder, expr);
-        builder.CreateRet(value);
+        emitPrint(mod, builder, value);
+        builder.CreateRet(builder.getInt32(0));
+
 
         ExecutionEngine *executionEngine = EngineBuilder(std::move(owner)).create();
         std::vector<GenericValue> noArgs;
-        GenericValue result = executionEngine->runFunction(mainFn, noArgs);
-
-        outs() << "Result: " << result.IntVal << "\n";
+        executionEngine->runFunction(mainFn, noArgs);
+        //mod->print(outs(), nullptr);
     }
 
 
