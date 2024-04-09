@@ -41,36 +41,42 @@ static void emitPrint(LLVMContext &context, BasicBlock *BB, Value *value) {
 }
 
 
-static Value *emitExpression(IRBuilder<> &builder, const ast::Expression &expr) {
+static Value *emitExpression(IRBuilder<> &builder, ast::EExpression &expr) {
 
-    if (std::holds_alternative<ast::Integer>(expr)) {
-        return builder.getInt32(std::get<ast::Integer>(expr));
+    switch (expr.type()) {
+    case ast::EExpression::TYPE_INTEGER: return builder.getInt32(expr.getInteger());
+    case ast::EExpression::TYPE_INFIX:
+        {
+            auto infix = expr.getInfix();
+            auto *left = emitExpression(builder, *infix.left);
+            auto *right = emitExpression(builder, *infix.right);
 
-    } else if (std::holds_alternative<ast::Infix>(expr)) {
-        auto infix = std::get<ast::Infix>(expr);
-        auto *left = emitExpression(builder, *infix.left);
-        auto *right = emitExpression(builder, *infix.right);
+            switch (infix.symbol) { 
+            case '+': return builder.CreateAdd(left, right,  "infix");
+            case '-': return builder.CreateSub(left, right,  "infix");
+            case '*': return builder.CreateMul(left, right,  "infix");
+            case '/': return builder.CreateSDiv(left, right, "infix");
+            default: assert(false); break;
+            }
 
-        switch (infix.symbol) { 
-        case '+': return builder.CreateAdd(left, right,  "infix");
-        case '-': return builder.CreateSub(left, right,  "infix");
-        case '*': return builder.CreateMul(left, right,  "infix");
-        case '/': return builder.CreateSDiv(left, right, "infix");
-        default: assert(false); break;
+            break;
         }
-    }
+    case ast::EExpression::TYPE_PREFIX:
+        {
+            auto prefix = expr.getPrefix();
+            auto *right = emitExpression(builder, *prefix.right);
+            auto *zero  = builder.getInt32(0);
 
-//    } else if (std::holds_alternative<ast::Prefix>(expr)) {
-//        auto prefix = std::get<ast::Prefix>(expr);
-//        auto *right = emitExpression(builder, *prefix.right);
-//        auto *zero = builder.getInt32(0);
-//
-//        switch (prefix.symbol) { 
-//        case '-': return builder.CreateSub(zero, right,  "prefix");
-//        default: assert(false); break;
-//        }
-//
-//    } 
+            switch (prefix.symbol) { 
+            case '-': return builder.CreateSub(zero, right,  "prefix");
+            default: assert(false); break;
+            }
+
+            break;
+        }
+    default: assert(false); break;
+    }
+                                            
 
     assert(false);
     return nullptr;
@@ -100,13 +106,13 @@ int main(int argc, char **argv) {
         auto *mainFn = createMainFunction(mod, context);
         BasicBlock *basicBlock = BasicBlock::Create(context, "EntryBlock", mainFn);
         builder.SetInsertPoint(basicBlock);
+
         auto *value = emitExpression(builder, expr);
         builder.CreateRet(value);
 
         ExecutionEngine *executionEngine = EngineBuilder(std::move(owner)).create();
         std::vector<GenericValue> noArgs;
         GenericValue result = executionEngine->runFunction(mainFn, noArgs);
-
 
         outs() << "Result: " << result.IntVal << "\n";
     }

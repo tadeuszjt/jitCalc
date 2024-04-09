@@ -7,7 +7,7 @@
 static std::vector<Token> tokens;
 static int tokenIndex;
 
-extern ast::Expression *bisonParseResult;
+extern ast::EExpression *bisonParseResult;
 
 int yylex(yy::parser::semantic_type *un) {
     if (tokenIndex >= tokens.size()) {
@@ -25,7 +25,7 @@ int yylex(yy::parser::semantic_type *un) {
     assert (false);
 }
 
-ast::Expression parse(std::string& text) {
+ast::EExpression parse(std::string& text) {
     tokens = lexTokens(text);
     tokenIndex = 0;
 
@@ -33,7 +33,7 @@ ast::Expression parse(std::string& text) {
     parser.parse();
 
     assert(bisonParseResult != nullptr);
-    ast::Expression result = *bisonParseResult;
+    auto result = *bisonParseResult;
     delete bisonParseResult;
     bisonParseResult = nullptr;
     return result;
