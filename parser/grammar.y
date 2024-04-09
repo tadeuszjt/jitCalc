@@ -44,6 +44,10 @@ program: expression { assert(bisonParseResult == nullptr); bisonParseResult = $1
 
 expression: INTEGER { $$ = new ast::Expression(ast::Integer{$1}); }
           | '(' expression ')' { $$ = $2; }
+//          | '-' expression {
+//    $$ = new ast::Expression(ast::Prefix('-', *$2));
+//    delete $2;
+//}
           | expression '+' expression {
     $$ = new ast::Expression(ast::Infix(*$1, '+', *$3));
     delete $1;

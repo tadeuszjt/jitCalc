@@ -28,14 +28,15 @@ add_custom_command(
     COMMENT "Running Bison"
 )
 
+# create executable from sources
+add_executable(jitCalc main.cpp parse.cpp lexer/lexer.cpp parser/ast.cpp ${BISON_OUTPUT})
+
 # make sure llvm is installed
 find_package(LLVM REQUIRED CONFIG)
 include_directories(${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
-llvm_map_components_to_libnames(llvm_libs support core irreader)
-
-# build and link
-add_executable(jitCalc main.cpp parse.cpp lexer/lexer.cpp parser/ast.cpp ${BISON_OUTPUT})
+llvm_map_components_to_libnames(llvm_libs support core executionengine mcjit native)
 target_link_libraries(jitCalc ${llvm_libs})
+
 
 
