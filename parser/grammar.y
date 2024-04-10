@@ -31,6 +31,7 @@ ast::Expr *bisonParseResult = nullptr;
 %token <integer>  INTEGER
 %token <ident>    IDENT
 %token <floating> FLOATING
+%token NEWLINE INDENT DEDENT
 
 %token '(' ')'
 %token '+' '-' '*' '/'

@@ -7,23 +7,30 @@
 #include <vector>
 // Implements a custom lexer to turn strings into vectors of tokens.
 
-using TokenInt = int;
-using TokenFloat = float;
-using TokenIdent = std::string;
-using TokenSymbol = char;
-using Token = std::variant<TokenInt, TokenFloat, TokenIdent, TokenSymbol>;
-struct LexSuccess {
-    std::string::iterator rest;
-    Token token;
-    LexSuccess(std::string::iterator it, Token tok) : rest(it), token(tok) {};
+
+const std::vector keywords = {"fn"};
+
+enum TokenSpace {
+    SPACE_NEWLINE,
+    SPACE_INDENT,
+    SPACE_DEDENT
 };
-using LexResult = std::optional<LexSuccess>;
+
+struct TokenKeyword {
+    TokenKeyword(const std::string &str) : str(str) {}
+    const std::string str;
+};
+
+struct TokenIdent {
+    TokenIdent(const std::string &str) : str(str) {}
+    const std::string str;
+};
+
+using TokenInt = int;
+using TokenFloat = double;
+using TokenSymbol = char;
+
+using Token = std::variant<TokenInt, TokenFloat, TokenIdent, TokenKeyword, TokenSymbol, TokenSpace>;
 
 std::vector<Token> lexTokens(std::string& str);
-LexResult lexFloating(std::string::iterator begin, std::string::iterator end);
-LexResult lexInteger(std::string::iterator begin, std::string::iterator end);
-LexResult lexIdent(std::string::iterator begin, std::string::iterator end);
-LexResult lexAny(std::string::iterator begin, std::string::iterator end);
-LexResult lexSymbol(std::string::iterator begin, std::string::iterator end);
-
 std::ostream& operator<<(std::ostream& os, const Token& token);

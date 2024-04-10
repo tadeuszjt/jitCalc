@@ -31,8 +31,17 @@ int yylex(yy::parser::semantic_type *un) {
     }
 
     if (std::holds_alternative<TokenIdent>(token)) {
-        un->ident = new std::string(std::get<TokenIdent>(token));
+        un->ident = new std::string(std::get<TokenIdent>(token).str);
         return yy::parser::token::IDENT;
+    }
+
+    if (std::holds_alternative<TokenSpace>(token)) {
+        switch (std::get<TokenSpace>(token)) {
+        case SPACE_NEWLINE: return yy::parser::token::NEWLINE;
+        case SPACE_INDENT: return yy::parser::token::INDENT;
+        case SPACE_DEDENT: return yy::parser::token::DEDENT;
+        default: assert(false); break;
+        }
     }
 
     assert(false);

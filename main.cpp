@@ -1,6 +1,6 @@
 // author: Tadeusz Tomoszek
 // email : tadeuszjt@protonmail.com
-// WIP. Will eventually implement a JIT compiled language for calculating numbers.
+// Implements a JIT compiled calculator.
 
 #include <iostream>
 #include <cassert>
@@ -36,43 +36,67 @@ Function* createMainFunction(Module *M, LLVMContext &context) {
 }
 
 
+std::string getNextInput() {
+    std::string input;
+
+    for (;;) {
+        std::cout << "> ";
+        std::string line;
+        std::getline(std::cin, line);
+
+        if (line == "q") {
+            return "q";
+        }
+        if (line == ";") {
+            return input;
+        }
+
+        input += line;
+    }
+}
+
+
 int main(int argc, char **argv) {
     InitializeNativeTarget();
     LLVMInitializeNativeAsmPrinter();
 
-    std::string input;
-    while (true) {
-        std::cout << "> ";
-        std::getline(std::cin, input);
+    LLVMContext context;
+    auto topModule = std::make_unique<Module>("jitCalc", context);
+    IRBuilder<> builder(context);
+    ExecutionEngine *executionEngine = EngineBuilder(std::move(topModule)).create();
 
+
+    for (;;) {
+        std::string input = getNextInput();
         if (input == "q") {
             break;
         }
 
         auto expr = parse(input);
 
-        LLVMContext context;
-        std::unique_ptr<Module> owner(new Module("jitCalc", context));
-        Module *mod = owner.get();
-        IRBuilder<> builder(context);
+        auto mod = std::make_unique<Module>("jitCalc_child", context);
+        auto *modPtr = mod.get();
+
 
         // Declare the printf function
         FunctionType* printfType = FunctionType::get(builder.getInt32Ty(), {builder.getPtrTy()}, true);
-        Function* printfFunc = Function::Create(printfType, Function::ExternalLinkage, "printf", mod);
+        Function* printfFunc = Function::Create(printfType, Function::ExternalLinkage, "printf", mod.get());
 
 
-        auto *mainFn = createMainFunction(mod, context);
+        auto *mainFn = createMainFunction(mod.get(), context);
         BasicBlock *basicBlock = BasicBlock::Create(context, "EntryBlock", mainFn);
         builder.SetInsertPoint(basicBlock);
         auto *value = emitExpression(builder, expr);
-        emitPrint(mod, builder, value);
+        emitPrint(mod.get(), builder, value);
         builder.CreateRet(builder.getInt32(0));
 
-
-        ExecutionEngine *executionEngine = EngineBuilder(std::move(owner)).create();
+        // run module in JIT engine
+        executionEngine->addModule(std::move(mod));
         std::vector<GenericValue> noArgs;
         executionEngine->runFunction(mainFn, noArgs);
-        //mod->print(outs(), nullptr);
+        modPtr->print(outs(), nullptr);
+        executionEngine->removeModule(modPtr);
+
     }
 
 
