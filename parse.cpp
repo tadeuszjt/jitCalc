@@ -7,7 +7,7 @@
 static std::vector<Token> tokens;
 static int tokenIndex;
 
-extern ast::Expr *bisonParseResult;
+extern ast::Program *bisonProgramResult;
 
 int yylex(yy::parser::semantic_type *un) {
     if (tokenIndex >= tokens.size()) {
@@ -35,6 +35,15 @@ int yylex(yy::parser::semantic_type *un) {
         return yy::parser::token::IDENT;
     }
 
+    if (std::holds_alternative<TokenKeyword>(token)) {
+        auto keyword = std::string(std::get<TokenKeyword>(token).str);
+        if (keyword == "fn") {
+            return yy::parser::token::KW_FN;
+        }
+
+        assert(false);
+    }
+
     if (std::holds_alternative<TokenSpace>(token)) {
         switch (std::get<TokenSpace>(token)) {
         case SPACE_NEWLINE: return yy::parser::token::NEWLINE;
@@ -47,17 +56,17 @@ int yylex(yy::parser::semantic_type *un) {
     assert(false);
 }
 
-ast::Expr parse(std::string& text) {
+ast::Program parse(std::string& text) {
     tokens = lexTokens(text);
     tokenIndex = 0;
 
     yy::parser parser;
     parser.parse();
 
-    if (bisonParseResult != nullptr) {
-        auto result = *bisonParseResult;
-        delete bisonParseResult;
-        bisonParseResult = nullptr;
+    if (bisonProgramResult != nullptr) {
+        auto result = *bisonProgramResult;
+        delete bisonProgramResult;
+        bisonProgramResult = nullptr;
         return result;
     } else {
         assert(false);

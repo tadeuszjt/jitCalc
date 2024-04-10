@@ -48,40 +48,43 @@ struct Prefix {
 
 struct Call {
     std::string name;
-
     Call(const Call& call) : name(call.name) {}
     Call(const std::string& name) : name(name) {}
 };
 
 
 struct Expr {
-    using Type = enum {
-        TYPE_INFIX,
-        TYPE_PREFIX,
-        TYPE_INTEGER,
-        TYPE_FLOATING,
-        TYPE_CALL
-    };
+    using Variant = std::variant<Infix, Prefix, Integer, Floating, Call>;
+    Expr(const Variant& x) : variant(x) {}
+    Expr(const Expr &x) : variant(x.variant) {}
 
-    Expr(const Infix &x) : t(TYPE_INFIX), variant(x) { }
-    Expr(const Prefix &x) : t(TYPE_PREFIX), variant(x) { }
-    Expr(const Integer &x) : t(TYPE_INTEGER), variant(x) { }
-    Expr(const Floating &x) : t(TYPE_FLOATING), variant(x) { }
-    Expr(const Call &x) : t(TYPE_CALL), variant(x) { }
-    Expr(const Expr &x) : t(x.type()), variant(x.variant) {}
-
-    Type type() const { return t; }
     const Infix& getInfix() const { return std::get<Infix>(variant); }
     const Prefix& getPrefix() const { return std::get<Prefix>(variant); }
     const Integer& getInteger() const { return std::get<Integer>(variant); }
     const Floating& getFloating() const { return std::get<Floating>(variant); }
     const Call& getCall() const { return std::get<Call>(variant); }
 
+    bool hasInfix() const { return std::holds_alternative<Infix>(variant); }
+    bool hasPrefix() const { return std::holds_alternative<Prefix>(variant); }
+    bool hasInteger() const { return std::holds_alternative<Integer>(variant); }
+    bool hasFloating() const { return std::holds_alternative<Floating>(variant); }
+    bool hasCall() const { return std::holds_alternative<Call>(variant); }
 private:
-    Type t;
-    std::variant<Infix, Prefix, Integer, Floating, Call> variant; 
+    Variant variant;
 };
 
+
+
+struct FnDef {
+    FnDef() {}
+};
+
+using Stmt = std::variant<FnDef>; 
+
+
+
+using Program = std::variant<Expr, Stmt>;
+
+
 }
-//
-//std::ostream& operator<<(std::ostream& os, const ast::Expression& expression);
+

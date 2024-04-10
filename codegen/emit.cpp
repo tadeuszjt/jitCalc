@@ -103,30 +103,29 @@ Value *emitPrefix(IRBuilder<> &builder, const ast::Prefix &prefix) {
 }
 
 Value *emitExpression(IRBuilder<> &builder, ast::Expr &expr) {
-
-    switch (expr.type()) {
-    case ast::Expr::TYPE_INTEGER: return builder.getInt32(expr.getInteger());
-    case ast::Expr::TYPE_INFIX:   return emitInfix(builder, expr.getInfix());
-    case ast::Expr::TYPE_PREFIX:  return emitPrefix(builder, expr.getPrefix());
-    case ast::Expr::TYPE_FLOATING: 
-        {
-            Constant *floating = ConstantFP::get(builder.getFloatTy(), expr.getFloating());
-            return builder.CreateFPCast(floating, builder.getFloatTy());
-            break;
-        }
-    case ast::Expr::TYPE_CALL:
-        {
-            auto call = expr.getCall();
-            if (call.name == "pi") {
-                Constant *piConst = ConstantFP::get(builder.getFloatTy(), M_PI);
-                return builder.CreateFPCast(piConst, builder.getFloatTy());
-            }
-
-            break;
-        }
-    default: assert(false); break;
+    if (expr.hasInteger()) {
+        return builder.getInt32(expr.getInteger());
     }
-                                            
+    if (expr.hasInfix()) {
+        return emitInfix(builder, expr.getInfix());
+    }
+    if (expr.hasPrefix()) {
+        return emitPrefix(builder, expr.getPrefix());
+    }
+    if (expr.hasFloating()) {
+        Constant *floating = ConstantFP::get(builder.getFloatTy(), expr.getFloating());
+        return builder.CreateFPCast(floating, builder.getFloatTy());
+    }
+    if (expr.hasCall()) {
+        auto call = expr.getCall();
+        if (call.name == "pi") {
+            Constant *piConst = ConstantFP::get(builder.getFloatTy(), M_PI);
+            return builder.CreateFPCast(piConst, builder.getFloatTy());
+        }
+
+        assert(false);
+    }
+
 
     assert(false);
     return nullptr;

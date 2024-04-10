@@ -13,14 +13,16 @@ public:
         std::vector<Token> tokens;
 
         for (;;) {
-            skipSpace();
+            // skip space
+            for (; start != end && (*start == '\t' || *start == ' '); start++) {
+            }
+
             auto newline = lexNewline(start);
             if (newline.size() > 0) {
                 for (TokenSpace space : newline) {
                     tokens.push_back(space);
                 }
             }
-
 
             auto result = lexAny();
             if (!result.has_value()) {
@@ -46,11 +48,6 @@ private:
         LexSuccess(std::string::iterator it, Token tok) : rest(it), token(tok) {};
     };
     using LexResult = std::optional<LexSuccess>;
-
-    void skipSpace() {
-        for (; start != end && (*start == '\t' || *start == ' '); start++) {
-        }
-    }
 
     LexResult lexAny() {
         auto floating = lexFloating();
