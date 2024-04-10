@@ -3,71 +3,140 @@
 #include <cmath>
 
 
-void emitPrint(Module *mod, IRBuilder<> &builder, Value *value) {
-    if (value->getType() == builder.getInt32Ty()) {
-        Value *format = builder.CreateGlobalStringPtr("benis: %d\n");
-        std::vector<Value*> args = {format, value};
-        builder.CreateCall(mod->getFunction("printf"), args);
-        return;
-    }
 
-    if (value->getType() == builder.getFloatTy()) {
-        Value *format = builder.CreateGlobalStringPtr("benis: %f\n");
 
-        Value *doub = builder.CreateFPExt(value, builder.getDoubleTy());
-        std::vector<Value*> args = {format, doub};
-        builder.CreateCall(mod->getFunction("printf"), args);
-        return;
-    }
-
-    assert(false);
+ModuleBuilder::ModuleBuilder(LLVMContext &context, const std::string &name)
+    : irBuilder(context)
+    , irModule(std::make_unique<Module>(name, context))
+    , curFn(nullptr)
+{
+    // Declare the printf function
+    Function::Create(
+            FunctionType::get(irBuilder.getInt32Ty(), {irBuilder.getPtrTy()}, true),
+            Function::ExternalLinkage,
+            "printf",
+            irModule.get());
 }
 
-Value *emitInfix(IRBuilder<> &builder, const ast::Infix &infix) {
-    auto *left = emitExpression(builder, *infix.left);
-    auto *right = emitExpression(builder, *infix.right);
+
+void ModuleBuilder::createFunction(const std::string &name, Type *returnType) {
+    FunctionType *fnType = FunctionType::get(returnType, {}, false);
+    assert(fnType != nullptr);
+    Function *fn = Function::Create(fnType, Function::ExternalLinkage, name, irModule.get());
+    assert(fn != nullptr);
+    BasicBlock *block = BasicBlock::Create(irModule->getContext(), "EntryBlock", fn);
+    assert(block != nullptr);
+}
+
+void ModuleBuilder::setCurrentFunction(const std::string &name) {
+    Function *fn = irModule->getFunction(name);
+    assert(fn != nullptr);
+    curFn = fn;
+    irBuilder.SetInsertPoint(&fn->back());
+}
+
+void ModuleBuilder::emitReturn(Value *value) {
+    assert(curFn != nullptr);
+    irBuilder.CreateRet(value);
+}
+
+void ModuleBuilder::printModule() {
+    irModule->print(outs(), nullptr);
+}
+
+void ModuleBuilder::emitPrint(Value *value) {
+    std::vector<Value*> printfArgs;
+
+    if (value->getType() == irBuilder.getInt32Ty()) {
+        Value *format = irBuilder.CreateGlobalStringPtr("benis: %d\n");
+        printfArgs = {format, value};
+    }
+    else if (value->getType() == irBuilder.getFloatTy()) {
+        Value *format = irBuilder.CreateGlobalStringPtr("benis: %f\n");
+
+        Value *doub = irBuilder.CreateFPExt(value, irBuilder.getDoubleTy());
+        printfArgs = {format, doub};
+    } else {
+        assert(false);
+    }
+
+    irBuilder.CreateCall(irModule->getFunction("printf"), printfArgs);
+}
+
+Value* ModuleBuilder::emitExpression(const ast::Expr &expr) {
+    if (expr.hasInteger()) {
+        return irBuilder.getInt32(expr.getInteger());
+    }
+    if (expr.hasInfix()) {
+        return emitInfix(expr.getInfix());
+    }
+    if (expr.hasPrefix()) {
+        return emitPrefix(expr.getPrefix());
+    }
+    if (expr.hasFloating()) {
+        Constant *floating = ConstantFP::get(irBuilder.getFloatTy(), expr.getFloating());
+        return irBuilder.CreateFPCast(floating, irBuilder.getFloatTy());
+    }
+    if (expr.hasCall()) {
+        auto call = expr.getCall();
+        if (call.name == "pi") {
+            Constant *piConst = ConstantFP::get(irBuilder.getFloatTy(), M_PI);
+            return irBuilder.CreateFPCast(piConst, irBuilder.getFloatTy());
+        }
+
+        assert(false);
+    }
 
 
-    if (right->getType() == builder.getInt32Ty() && left->getType() == builder.getInt32Ty()) {
+    assert(false);
+    return nullptr;
+}
+
+Value* ModuleBuilder::emitInfix(const ast::Infix &infix) {
+    auto *left = emitExpression(*infix.left);
+    auto *right = emitExpression(*infix.right);
+
+
+    if (right->getType() == irBuilder.getInt32Ty() && left->getType() == irBuilder.getInt32Ty()) {
         switch (infix.symbol) { 
-        case '+': return builder.CreateAdd(left, right,  "infix");
-        case '-': return builder.CreateSub(left, right,  "infix");
-        case '*': return builder.CreateMul(left, right,  "infix");
-        case '/': return builder.CreateSDiv(left, right, "infix");
+        case '+': return irBuilder.CreateAdd(left, right,  "infix");
+        case '-': return irBuilder.CreateSub(left, right,  "infix");
+        case '*': return irBuilder.CreateMul(left, right,  "infix");
+        case '/': return irBuilder.CreateSDiv(left, right, "infix");
         default: assert(false); break;
         }
     }
 
-    if (right->getType() == builder.getFloatTy() && left->getType() == builder.getFloatTy()) {
+    if (right->getType() == irBuilder.getFloatTy() && left->getType() == irBuilder.getFloatTy()) {
         switch (infix.symbol) { 
-        case '+': return builder.CreateFAdd(left, right,  "infix");
-        case '-': return builder.CreateFSub(left, right,  "infix");
-        case '*': return builder.CreateFMul(left, right,  "infix");
-        case '/': return builder.CreateFDiv(left, right, "infix");
+        case '+': return irBuilder.CreateFAdd(left, right,  "infix");
+        case '-': return irBuilder.CreateFSub(left, right,  "infix");
+        case '*': return irBuilder.CreateFMul(left, right,  "infix");
+        case '/': return irBuilder.CreateFDiv(left, right, "infix");
         default: assert(false); break;
         }
     }
 
 
     if (
-        (right->getType() == builder.getInt32Ty() && left->getType() == builder.getFloatTy()) ||
-        (right->getType() == builder.getFloatTy() && left->getType() == builder.getInt32Ty())
+        (right->getType() == irBuilder.getInt32Ty() && left->getType() == irBuilder.getFloatTy()) ||
+        (right->getType() == irBuilder.getFloatTy() && left->getType() == irBuilder.getInt32Ty())
     ) {
         Value *rightFloat = right;
         Value *leftFloat = left;
 
-        if (right->getType() == builder.getInt32Ty()) {
-            rightFloat = builder.CreateSIToFP(right, builder.getFloatTy());
+        if (right->getType() == irBuilder.getInt32Ty()) {
+            rightFloat = irBuilder.CreateSIToFP(right, irBuilder.getFloatTy());
         }
-        if (left->getType() == builder.getInt32Ty()) {
-            leftFloat = builder.CreateSIToFP(left, builder.getFloatTy());
+        if (left->getType() == irBuilder.getInt32Ty()) {
+            leftFloat = irBuilder.CreateSIToFP(left, irBuilder.getFloatTy());
         }
 
         switch (infix.symbol) { 
-        case '+': return builder.CreateFAdd(leftFloat, rightFloat,  "infix");
-        case '-': return builder.CreateFSub(leftFloat, rightFloat,  "infix");
-        case '*': return builder.CreateFMul(leftFloat, rightFloat,  "infix");
-        case '/': return builder.CreateFDiv(leftFloat, rightFloat, "infix");
+        case '+': return irBuilder.CreateFAdd(leftFloat, rightFloat,  "infix");
+        case '-': return irBuilder.CreateFSub(leftFloat, rightFloat,  "infix");
+        case '*': return irBuilder.CreateFMul(leftFloat, rightFloat,  "infix");
+        case '/': return irBuilder.CreateFDiv(leftFloat, rightFloat, "infix");
         default: assert(false); break;
         }
     }
@@ -78,54 +147,25 @@ Value *emitInfix(IRBuilder<> &builder, const ast::Infix &infix) {
     return nullptr;
 }
 
-Value *emitPrefix(IRBuilder<> &builder, const ast::Prefix &prefix) {
-    auto *right = emitExpression(builder, *prefix.right);
+Value* ModuleBuilder::emitPrefix(const ast::Prefix &prefix) {
+    auto *right = emitExpression(*prefix.right);
 
     // Value is integer
-    if (right->getType() == builder.getInt32Ty()) {
+    if (right->getType() == irBuilder.getInt32Ty()) {
         if (prefix.symbol == '-') {
-            return builder.CreateSub(builder.getInt32(0), right, "prefix");
+            return irBuilder.CreateSub(irBuilder.getInt32(0), right, "prefix");
         }
         assert(false);
     }
 
     // Value is float
-    if (right->getType() == builder.getFloatTy()) {
-        Constant *zeroConst = ConstantFP::get(builder.getFloatTy(), 0.0);
+    if (right->getType() == irBuilder.getFloatTy()) {
+        Constant *zeroConst = ConstantFP::get(irBuilder.getFloatTy(), 0.0);
         if (prefix.symbol == '-') {
-            return builder.CreateFSub(zeroConst, right, "prefix");
+            return irBuilder.CreateFSub(zeroConst, right, "prefix");
         }
         assert(false);
     }
-
-    assert(false);
-    return nullptr;
-}
-
-Value *emitExpression(IRBuilder<> &builder, ast::Expr &expr) {
-    if (expr.hasInteger()) {
-        return builder.getInt32(expr.getInteger());
-    }
-    if (expr.hasInfix()) {
-        return emitInfix(builder, expr.getInfix());
-    }
-    if (expr.hasPrefix()) {
-        return emitPrefix(builder, expr.getPrefix());
-    }
-    if (expr.hasFloating()) {
-        Constant *floating = ConstantFP::get(builder.getFloatTy(), expr.getFloating());
-        return builder.CreateFPCast(floating, builder.getFloatTy());
-    }
-    if (expr.hasCall()) {
-        auto call = expr.getCall();
-        if (call.name == "pi") {
-            Constant *piConst = ConstantFP::get(builder.getFloatTy(), M_PI);
-            return builder.CreateFPCast(piConst, builder.getFloatTy());
-        }
-
-        assert(false);
-    }
-
 
     assert(false);
     return nullptr;

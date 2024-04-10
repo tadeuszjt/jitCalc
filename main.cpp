@@ -75,31 +75,23 @@ int main(int argc, char **argv) {
         auto program = parse(input);
 
         if (std::holds_alternative<ast::Expr>(program)) {
+            ModuleBuilder modBuilder(context, "jitCalc_child");
+
+            modBuilder.createFunction("func", modBuilder.getInt32Ty());
+            modBuilder.setCurrentFunction("func");
+
             auto expr = std::get<ast::Expr>(program);
-
-            auto mod = std::make_unique<Module>("jitCalc_child", context);
-            auto *modPtr = mod.get();
-
-
-            // Declare the printf function
-            FunctionType* printfType = FunctionType::get(builder.getInt32Ty(), {builder.getPtrTy()}, true);
-            Function* printfFunc = Function::Create(printfType, Function::ExternalLinkage, "printf", mod.get());
-
-
-            auto *mainFn = createMainFunction(mod.get(), context);
-            BasicBlock *basicBlock = BasicBlock::Create(context, "EntryBlock", mainFn);
-
-            builder.SetInsertPoint(basicBlock);
-            auto *value = emitExpression(builder, expr);
-            emitPrint(mod.get(), builder, value);
-            builder.CreateRet(builder.getInt32(0));
+            auto *v = modBuilder.emitExpression(expr);
+            modBuilder.emitPrint(v);
+            modBuilder.emitReturn(modBuilder.getInt32(0));
+            modBuilder.printModule();
 
             // run module in JIT engine
-            executionEngine->addModule(std::move(mod));
+            Function *fn = modBuilder.getFunction("func");
+            executionEngine->addModule(modBuilder.moveModule());
             std::vector<GenericValue> noArgs;
-            executionEngine->runFunction(mainFn, noArgs);
-            modPtr->print(outs(), nullptr);
-            executionEngine->removeModule(modPtr);
+            executionEngine->runFunction(fn, noArgs);
+            executionEngine->removeModule("jitCalc_child");
         }
 
     }
