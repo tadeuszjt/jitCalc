@@ -80,31 +80,31 @@ void ModuleBuilder::emitPrint(Value *value) {
 }
 
 Value* ModuleBuilder::emitExpression(const ast::Expr &expr) {
-    if (expr.hasInteger()) {
-        return irBuilder.getInt32(expr.getInteger());
+    if (auto *integer = dynamic_cast<const ast::Integer*>(&expr)) {
+        return irBuilder.getInt32(integer->integer);
     }
-    if (expr.hasInfix()) {
-        return emitInfix(expr.getInfix());
+    if (auto *floating = dynamic_cast<const ast::Floating*>(&expr)) {
+        Constant *flt = ConstantFP::get(getFloatTy(), floating->floating);
+        return irBuilder.CreateFPCast(flt, getFloatTy());
     }
-    if (expr.hasPrefix()) {
-        return emitPrefix(expr.getPrefix());
+    if (auto *infix = dynamic_cast<const ast::Infix*>(&expr)) {
+        return emitInfix(*infix);
     }
-    if (expr.hasFloating()) {
-        Constant *floating = ConstantFP::get(getFloatTy(), expr.getFloating());
-        return irBuilder.CreateFPCast(floating, getFloatTy());
+    if (auto *prefix = dynamic_cast<const ast::Prefix*>(&expr)) {
+        return emitPrefix(*prefix);
     }
-    if (expr.hasCall()) {
-        auto call = expr.getCall();
-        if (call.name == "pi") {
-            Constant *piConst = ConstantFP::get(getFloatTy(), M_PI);
-            return irBuilder.CreateFPCast(piConst, getFloatTy());
-        }
-
-        createExtern(call.name, getFloatTy());
-        return irBuilder.CreateCall(irModule->getFunction(call.name), {});
-    }
-
-
+//    if (expr.hasCall()) {
+//        auto call = expr.getCall();
+//        if (call.name == "pi") {
+//            Constant *piConst = ConstantFP::get(getFloatTy(), M_PI);
+//            return irBuilder.CreateFPCast(piConst, getFloatTy());
+//        }
+//
+//        createExtern(call.name, getFloatTy());
+//        return irBuilder.CreateCall(irModule->getFunction(call.name), {});
+//    }
+//
+//
     assert(false);
     return nullptr;
 }
@@ -115,7 +115,7 @@ Value* ModuleBuilder::emitInfix(const ast::Infix &infix) {
 
 
     if (right->getType() == irBuilder.getInt32Ty() && left->getType() == irBuilder.getInt32Ty()) {
-        switch (infix.symbol) { 
+        switch (infix.symbol.symbol) { 
         case '+': return irBuilder.CreateAdd(left, right,  "infix");
         case '-': return irBuilder.CreateSub(left, right,  "infix");
         case '*': return irBuilder.CreateMul(left, right,  "infix");
@@ -125,7 +125,7 @@ Value* ModuleBuilder::emitInfix(const ast::Infix &infix) {
     }
 
     if (right->getType() == getFloatTy() && left->getType() == getFloatTy()) {
-        switch (infix.symbol) { 
+        switch (infix.symbol.symbol) { 
         case '+': return irBuilder.CreateFAdd(left, right,  "infix");
         case '-': return irBuilder.CreateFSub(left, right,  "infix");
         case '*': return irBuilder.CreateFMul(left, right,  "infix");
@@ -149,7 +149,7 @@ Value* ModuleBuilder::emitInfix(const ast::Infix &infix) {
             leftFloat = irBuilder.CreateSIToFP(left, getFloatTy());
         }
 
-        switch (infix.symbol) { 
+        switch (infix.symbol.symbol) { 
         case '+': return irBuilder.CreateFAdd(leftFloat, rightFloat,  "infix");
         case '-': return irBuilder.CreateFSub(leftFloat, rightFloat,  "infix");
         case '*': return irBuilder.CreateFMul(leftFloat, rightFloat,  "infix");
@@ -169,7 +169,7 @@ Value* ModuleBuilder::emitPrefix(const ast::Prefix &prefix) {
 
     // Value is integer
     if (right->getType() == irBuilder.getInt32Ty()) {
-        if (prefix.symbol == '-') {
+        if (prefix.symbol.symbol == '-') {
             return irBuilder.CreateSub(irBuilder.getInt32(0), right, "prefix");
         }
         assert(false);
@@ -178,7 +178,7 @@ Value* ModuleBuilder::emitPrefix(const ast::Prefix &prefix) {
     // Value is float
     if (right->getType() == getFloatTy()) {
         Constant *zeroConst = ConstantFP::get(getFloatTy(), 0.0);
-        if (prefix.symbol == '-') {
+        if (prefix.symbol.symbol == '-') {
             return irBuilder.CreateFSub(zeroConst, right, "prefix");
         }
         assert(false);

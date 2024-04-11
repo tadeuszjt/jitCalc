@@ -9,99 +9,84 @@
 // defines the AST as several types. Provides the << operator to print to std::cout.
 namespace ast {
 
-struct Expr;
 
-using Symbol = char;
-using Integer = int;
-using Floating = double;
-
-struct Infix {
-    std::unique_ptr<Expr> left, right;
-    Symbol symbol;
-
-    Infix(const Infix& infix) :
-        left(std::make_unique<Expr>(*infix.left)),
-        right(std::make_unique<Expr>(*infix.right)),
-        symbol(infix.symbol)
-    {}
-
-    Infix(const Expr& left, Symbol symbol, const Expr& right) :
-        left(std::make_unique<Expr>(left)),
-        right(std::make_unique<Expr>(right)),
-        symbol(symbol)
-    {}
+struct Node {
+    virtual ~Node() { }
 };
 
-struct Prefix {
-    std::unique_ptr<Expr> right;
-    Symbol symbol;
-
-    Prefix(const Prefix& prefix) :
-        right(std::make_unique<Expr>(*prefix.right)),
-        symbol(prefix.symbol)
-    {}
-
-    Prefix(Symbol symbol, const Expr& right) :
-        right(std::make_unique<Expr>(right)),
-        symbol(symbol)
-    {}
+struct Expr : public Node {
+    virtual ~Expr() {}
 };
 
-struct Call {
+
+struct Ident : public Node {
+    Ident(const std::string &ident) : ident(ident) {}
+    ~Ident() override {}
+    const std::string ident;
+};
+
+struct Operator : public Node {
+    Operator(char op) : op(op) {}
+    ~Operator() override {}
+    char op;
+};
+
+
+struct Symbol : public Node {
+    Symbol(char symbol) : symbol(symbol) {}
+    const char symbol;
+
+    ~Symbol() override {}
+};
+
+struct Integer : public Expr {
+    Integer(int integer) : integer(integer) {}
+    const int integer;
+    ~Integer() override {}
+};
+
+struct Floating : public Expr {
+    Floating(double floating) : floating(floating) {}
+    const double floating;
+    ~Floating() override {}
+};
+
+struct Infix : public Expr {
+    const std::shared_ptr<Expr> left, right;
+    Symbol symbol;
+
+    Infix(const std::shared_ptr<Expr> left, Symbol symbol, const std::shared_ptr<Expr> right) :
+        left(left),
+        right(right),
+        symbol(symbol)
+    {}
+    ~Infix() override {}
+};
+
+struct Prefix : public Expr {
+    std::shared_ptr<Expr> right;
+    Symbol symbol;
+
+    Prefix(Symbol symbol, std::shared_ptr<Expr> right) : right(right), symbol(symbol) {}
+    ~Prefix() override {}
+};
+
+struct Call : public Expr {
     std::string name;
     Call(const Call& call) : name(call.name) {}
     Call(const std::string& name) : name(name) {}
+    ~Call() override {}
 };
 
-
-struct Expr {
-    using Variant = std::variant<Infix, Prefix, Integer, Floating, Call>;
-    Expr(const Variant& x) : variant(x) {}
-    Expr(const Expr &x) : variant(x.variant) {}
-
-    const Infix& getInfix() const { return std::get<Infix>(variant); }
-    const Prefix& getPrefix() const { return std::get<Prefix>(variant); }
-    const Integer& getInteger() const { return std::get<Integer>(variant); }
-    const Floating& getFloating() const { return std::get<Floating>(variant); }
-    const Call& getCall() const { return std::get<Call>(variant); }
-
-    bool hasInfix() const { return std::holds_alternative<Infix>(variant); }
-    bool hasPrefix() const { return std::holds_alternative<Prefix>(variant); }
-    bool hasInteger() const { return std::holds_alternative<Integer>(variant); }
-    bool hasFloating() const { return std::holds_alternative<Floating>(variant); }
-    bool hasCall() const { return std::holds_alternative<Call>(variant); }
-private:
-    Variant variant;
-};
-
-
-
-struct FnDef {
+struct FnDef : public Node {
     FnDef(const std::string &name, const std::vector<std::string> argList, const Expr& body)
         : name(name), body(body), argList(argList) {}
 
     const std::string name;
     const Expr body;
     const std::vector<std::string> argList;
+    ~FnDef() override {}
 };
-
-struct Stmt {
-    using Variant = std::variant<FnDef>;
-
-    Stmt(const Variant& x) : variant(x) {}
-    Stmt(const Stmt& x) : variant(x.variant) {}
-
-    bool hasFnDef() const { return std::holds_alternative<FnDef>(variant); }
-
-    const FnDef& getFnDef() const { return std::get<FnDef>(variant); }
-
-private:
-    Variant variant;
-};
-
-
-
-using Program = std::variant<Expr, Stmt>;
 
 
 }
