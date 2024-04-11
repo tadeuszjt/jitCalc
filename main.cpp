@@ -20,7 +20,7 @@
 #include "lexer.h"
 #include "ast.h"
 #include "parse.h"
-#include "emit.h"
+#include "moduleBuilder.h"
 #include "grammar.tab.hh"
 
 using namespace llvm;
@@ -59,49 +59,38 @@ int main(int argc, char **argv) {
             break;
         }
 
-        auto expr = std::dynamic_pointer_cast<ast::Expr>(parse(input));
+        auto result = parse(input);
+        auto *presult = result.get();
 
-        ModuleBuilder modBuilder(context, "jitCalc_child");
+        if (auto *expr = dynamic_cast<ast::Expr*>(presult)) {
+            ModuleBuilder modBuilder(context, "jitCalc_child");
 
-        modBuilder.createFunction("func", modBuilder.getInt32Ty());
-        modBuilder.setCurrentFunction("func");
+            modBuilder.createFunction("func", modBuilder.getInt32Ty());
+            modBuilder.setCurrentFunction("func");
 
-        auto *v = modBuilder.emitExpression(*expr);
-        modBuilder.emitPrint(v);
-        modBuilder.emitReturn(modBuilder.getInt32(0));
-        modBuilder.printModule();
+            auto *v = modBuilder.emitExpression(*expr);
+            modBuilder.emitPrint(v);
+            modBuilder.emitReturn(modBuilder.getInt32(0));
+            modBuilder.printModule();
 
-        // run module in JIT engine
-        Module *mod = modBuilder.getModule();
-        Function *fn = modBuilder.getFunction("func");
-        executionEngine->addModule(modBuilder.moveModule());
-        std::vector<GenericValue> noArgs;
-        executionEngine->runFunction(fn, noArgs);
-        executionEngine->removeModule(mod);
-//
-//        } else if (std::holds_alternative<ast::Stmt>(program)) {
-//            auto stmt = std::get<ast::Stmt>(program);
-//            if (stmt.hasFnDef()) {
-//                auto fnDef = stmt.getFnDef();
-//
-//                ModuleBuilder modBuilder(context, "jitCalc_" + fnDef.name);
-//                modBuilder.createFunction(fnDef.name, modBuilder.getFloatTy());
-//                modBuilder.setCurrentFunction(fnDef.name);
-//                auto *v = modBuilder.emitExpression(fnDef.body);
-//                auto *v2 = modBuilder.emitConvertToFloat(v);
-//                modBuilder.emitReturn(v2);
-//
-//                executionEngine->addModule(modBuilder.moveModule());
-//            } else {
-//                assert(false);
-//            }
-//
-//
-//
-//        } else {
-//            assert(false);
-//        }
+            // run module in JIT engine
+            Module *mod = modBuilder.getModule();
+            Function *fn = modBuilder.getFunction("func");
+            executionEngine->addModule(modBuilder.moveModule());
+            std::vector<GenericValue> noArgs;
+            executionEngine->runFunction(fn, noArgs);
+            executionEngine->removeModule(mod);
+        } else if (auto *fnDef = dynamic_cast<ast::FnDef*>(presult)) {
 
+            ModuleBuilder modBuilder(context, "jitCalc_" + fnDef->name->ident);
+            modBuilder.createFunction(fnDef->name->ident, modBuilder.getFloatTy());
+            modBuilder.setCurrentFunction(fnDef->name->ident);
+            auto *v = modBuilder.emitExpression(*fnDef->body);
+            auto *v2 = modBuilder.emitConvertToFloat(v);
+            modBuilder.emitReturn(v2);
+
+            executionEngine->addModule(modBuilder.moveModule());
+        }
     }
 
 

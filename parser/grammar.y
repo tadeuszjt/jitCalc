@@ -16,10 +16,17 @@
 // this function is called for every token, returns token type (INTEGER, '+', '-'...)
 int yylex(yy::parser::semantic_type *);
 std::shared_ptr<ast::Node> bisonProgramResult;
+
+template <typename A, typename B>
+std::shared_ptr<A> cast(std::shared_ptr<B> ptr) { return std::dynamic_pointer_cast<A>(ptr); }
+
+using namespace std;
+using namespace ast;
 %}
 
 
 %token NEWLINE INDENT DEDENT INTEGER FLOATING ident
+%token KW_FN
 %token '(' ')' ','
 %token '+' '-' '*' '/'
 
@@ -31,43 +38,33 @@ std::shared_ptr<ast::Node> bisonProgramResult;
 %%
 
 program : expr NEWLINE { bisonProgramResult = $1; }
+        | stmtBlock    { bisonProgramResult = $1; };
 
-expr : INTEGER       { $$ = $1; }
-     | FLOATING      { $$ = $1; }
-     | ident '(' ')' { $$ = std::make_shared<ast::Call>(std::dynamic_pointer_cast<ast::Ident>($1).get()->ident); }
-     | '(' expr ')'  { $$ = $2; }
-     | '-' expr      { $$ = std::make_shared<ast::Prefix>('-', std::dynamic_pointer_cast<ast::Expr>($2)); }
-     | expr '+' expr { $$ = std::make_shared<ast::Infix>(std::dynamic_pointer_cast<ast::Expr>($1), '+', std::dynamic_pointer_cast<ast::Expr>($3)); }
-     | expr '-' expr { $$ = std::make_shared<ast::Infix>(std::dynamic_pointer_cast<ast::Expr>($1), '-', std::dynamic_pointer_cast<ast::Expr>($3)); }
-     | expr '*' expr { $$ = std::make_shared<ast::Infix>(std::dynamic_pointer_cast<ast::Expr>($1), '*', std::dynamic_pointer_cast<ast::Expr>($3)); }
-     | expr '/' expr { $$ = std::make_shared<ast::Infix>(std::dynamic_pointer_cast<ast::Expr>($1), '/', std::dynamic_pointer_cast<ast::Expr>($3)); };
+expr
+    : INTEGER       { $$ = $1; }
+    | FLOATING      { $$ = $1; }
+    | '(' expr ')'  { $$ = $2; }
+    | ident '(' ')' { $$ = make_shared<Call>(cast<Ident>($1).get()->ident); }
+    | '-' expr      { $$ = make_shared<Prefix>('-', cast<Expr>($2)); }
+    | expr '+' expr { $$ = make_shared<Infix>(cast<Expr>($1), '+', cast<Expr>($3)); }
+    | expr '-' expr { $$ = make_shared<Infix>(cast<Expr>($1), '-', cast<Expr>($3)); }
+    | expr '*' expr { $$ = make_shared<Infix>(cast<Expr>($1), '*', cast<Expr>($3)); }
+    | expr '/' expr { $$ = make_shared<Infix>(cast<Expr>($1), '/', cast<Expr>($3)); };
 
-//program: expr NEWLINE {
-//       assert(bisonProgramResult == nullptr);
-//       bisonProgramResult = new ast::Program(*$1);
-//       delete $1;
-//}
-//    | statement {
-//       assert(bisonProgramResult == nullptr);
-//       bisonProgramResult = new ast::Program(*$1);
-//       delete $1;
-//};
-//
-//
-//statement
-//    : KW_FN ident '(' argList ')' INDENT expr DEDENT { $$ = new ast::Stmt(ast::FnDef(*$2, *$4, *$7)); delete $2; delete $4; delete $7; };
-//
-//
-//argList
-//    : ident             { $$ = new std::vector<std::string>{*$1}; delete $1; }
-//    | ident ',' argList { $$ = $3; $$->insert($$->begin(), *$1); delete $1; };
 
+stmtBlock
+    : KW_FN ident '(' idents ')' INDENT expr DEDENT { $$ = make_shared<FnDef>(cast<Ident>($2), cast<IdentList>($3), cast<Expr>($7)); };
+
+
+idents
+    : ident            { auto list = make_shared<IdentList>(); list->cons(cast<Ident>($1)); $$ = list; }
+    | ident ',' idents { cast<IdentList>($3)->cons(cast<Ident>($1)); };
 %%
 
 namespace yy {
 // provide a definition for the virtual error member
-void parser::error(const std::string& msg) {
-    std::cerr << "Bison error: " << msg << std::endl;
+void parser::error(const string& msg) {
+    cerr << "Bison error: " << msg << endl;
 }
 }
 

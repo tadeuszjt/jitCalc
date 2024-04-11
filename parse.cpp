@@ -36,15 +36,15 @@ int yylex(yy::parser::semantic_type *un) {
         return yy::parser::token::ident;
     }
 
-//    if (std::holds_alternative<TokenKeyword>(token)) {
-//        auto keyword = std::string(std::get<TokenKeyword>(token).str);
-//        if (keyword == "fn") {
-//            return yy::parser::token::KW_FN;
-//        }
-//
-//        assert(false);
-//    }
-//
+    if (std::holds_alternative<TokenKeyword>(token)) {
+        auto keyword = std::string(std::get<TokenKeyword>(token).str);
+        if (keyword == "fn") {
+            return yy::parser::token::KW_FN;
+        }
+
+        assert(false);
+    }
+
     if (std::holds_alternative<TokenSpace>(token)) {
         switch (std::get<TokenSpace>(token)) {
         case SPACE_NEWLINE: return yy::parser::token::NEWLINE;

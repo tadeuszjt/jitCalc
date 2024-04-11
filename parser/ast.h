@@ -18,6 +18,10 @@ struct Expr : public Node {
     virtual ~Expr() {}
 };
 
+struct Stmt : public Node {
+    virtual ~Stmt() {}
+};
+
 
 struct Ident : public Node {
     Ident(const std::string &ident) : ident(ident) {}
@@ -25,18 +29,19 @@ struct Ident : public Node {
     const std::string ident;
 };
 
-struct Operator : public Node {
-    Operator(char op) : op(op) {}
-    ~Operator() override {}
-    char op;
+struct IdentList : public Node {
+    IdentList() {}
+    void cons(std::shared_ptr<Ident> ident) { identList.insert(identList.begin(), ident); }
+    std::vector<std::shared_ptr<Ident>> identList;
+    ~IdentList() override {}
 };
 
 
-struct Symbol : public Node {
-    Symbol(char symbol) : symbol(symbol) {}
+struct Operator : public Node {
+    Operator(char symbol) : symbol(symbol) {}
     const char symbol;
 
-    ~Symbol() override {}
+    ~Operator() override {}
 };
 
 struct Integer : public Expr {
@@ -53,9 +58,9 @@ struct Floating : public Expr {
 
 struct Infix : public Expr {
     const std::shared_ptr<Expr> left, right;
-    Symbol symbol;
+    Operator symbol;
 
-    Infix(const std::shared_ptr<Expr> left, Symbol symbol, const std::shared_ptr<Expr> right) :
+    Infix(const std::shared_ptr<Expr> left, Operator symbol, const std::shared_ptr<Expr> right) :
         left(left),
         right(right),
         symbol(symbol)
@@ -65,26 +70,28 @@ struct Infix : public Expr {
 
 struct Prefix : public Expr {
     std::shared_ptr<Expr> right;
-    Symbol symbol;
+    Operator symbol;
 
-    Prefix(Symbol symbol, std::shared_ptr<Expr> right) : right(right), symbol(symbol) {}
+    Prefix(Operator symbol, std::shared_ptr<Expr> right) : right(right), symbol(symbol) {}
     ~Prefix() override {}
 };
 
 struct Call : public Expr {
     std::string name;
-    Call(const Call& call) : name(call.name) {}
     Call(const std::string& name) : name(name) {}
     ~Call() override {}
 };
 
-struct FnDef : public Node {
-    FnDef(const std::string &name, const std::vector<std::string> argList, const Expr& body)
-        : name(name), body(body), argList(argList) {}
+struct FnDef : public Stmt {
+    FnDef(const std::shared_ptr<Ident> name,
+          const std::shared_ptr<IdentList> args,
+          const std::shared_ptr<Expr> body)
+            : name(name), args(args), body(body) {}
 
-    const std::string name;
-    const Expr body;
-    const std::vector<std::string> argList;
+    const std::shared_ptr<Ident> name;
+    const std::shared_ptr<IdentList> args;
+    const std::shared_ptr<Expr> body;
+
     ~FnDef() override {}
 };
 
