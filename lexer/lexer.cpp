@@ -172,7 +172,7 @@ private:
     LexResult lexSymbol() {
         std::string::iterator it = start;
 
-        std::string symbols = "+-*/()";
+        std::string symbols = "+-*/(),";
 
         if (it != end && symbols.find(*it) != std::string::npos) {
             it++;

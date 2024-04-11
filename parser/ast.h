@@ -4,6 +4,7 @@
 #include <variant>
 #include <iostream>
 #include <cassert>
+#include <vector>
 
 // defines the AST as several types. Provides the << operator to print to std::cout.
 namespace ast {
@@ -76,10 +77,27 @@ private:
 
 
 struct FnDef {
-    FnDef() {}
+    FnDef(const std::string &name, const std::vector<std::string> argList, const Expr& body)
+        : name(name), body(body), argList(argList) {}
+
+    const std::string name;
+    const Expr body;
+    const std::vector<std::string> argList;
 };
 
-using Stmt = std::variant<FnDef>; 
+struct Stmt {
+    using Variant = std::variant<FnDef>;
+
+    Stmt(const Variant& x) : variant(x) {}
+    Stmt(const Stmt& x) : variant(x.variant) {}
+
+    bool hasFnDef() const { return std::holds_alternative<FnDef>(variant); }
+
+    const FnDef& getFnDef() const { return std::get<FnDef>(variant); }
+
+private:
+    Variant variant;
+};
 
 
 

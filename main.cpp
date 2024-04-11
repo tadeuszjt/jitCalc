@@ -25,17 +25,6 @@
 
 using namespace llvm;
 
-Function* createMainFunction(Module *M, LLVMContext &context) {
-    FunctionType *MainFnType = FunctionType::get(
-        Type::getInt32Ty(context),
-        {},     // arg list
-        false); // varg
-
-    Function *MainFn = Function::Create(MainFnType, Function::ExternalLinkage, "main", M);
-    return MainFn;
-}
-
-
 std::string getNextInput() {
     std::string input;
 
@@ -56,14 +45,12 @@ std::string getNextInput() {
     }
 }
 
-
 int main(int argc, char **argv) {
     InitializeNativeTarget();
     LLVMInitializeNativeAsmPrinter();
 
     LLVMContext context;
     auto topModule = std::make_unique<Module>("jitCalc", context);
-    IRBuilder<> builder(context);
     ExecutionEngine *executionEngine = EngineBuilder(std::move(topModule)).create();
 
     for (;;) {
@@ -73,6 +60,7 @@ int main(int argc, char **argv) {
         }
 
         auto program = parse(input);
+
 
         if (std::holds_alternative<ast::Expr>(program)) {
             ModuleBuilder modBuilder(context, "jitCalc_child");
@@ -87,11 +75,34 @@ int main(int argc, char **argv) {
             modBuilder.printModule();
 
             // run module in JIT engine
+            Module *mod = modBuilder.getModule();
             Function *fn = modBuilder.getFunction("func");
             executionEngine->addModule(modBuilder.moveModule());
             std::vector<GenericValue> noArgs;
             executionEngine->runFunction(fn, noArgs);
-            executionEngine->removeModule("jitCalc_child");
+            executionEngine->removeModule(mod);
+
+        } else if (std::holds_alternative<ast::Stmt>(program)) {
+            auto stmt = std::get<ast::Stmt>(program);
+            if (stmt.hasFnDef()) {
+                auto fnDef = stmt.getFnDef();
+
+                ModuleBuilder modBuilder(context, "jitCalc_" + fnDef.name);
+                modBuilder.createFunction(fnDef.name, modBuilder.getFloatTy());
+                modBuilder.setCurrentFunction(fnDef.name);
+                auto *v = modBuilder.emitExpression(fnDef.body);
+                auto *v2 = modBuilder.emitConvertToFloat(v);
+                modBuilder.emitReturn(v2);
+
+                executionEngine->addModule(modBuilder.moveModule());
+            } else {
+                assert(false);
+            }
+
+
+
+        } else {
+            assert(false);
         }
 
     }

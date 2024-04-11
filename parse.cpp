@@ -31,8 +31,8 @@ int yylex(yy::parser::semantic_type *un) {
     }
 
     if (std::holds_alternative<TokenIdent>(token)) {
-        un->ident = new std::string(std::get<TokenIdent>(token).str);
-        return yy::parser::token::IDENT;
+        un->identType = new std::string(std::get<TokenIdent>(token).str);
+        return yy::parser::token::ident;
     }
 
     if (std::holds_alternative<TokenKeyword>(token)) {

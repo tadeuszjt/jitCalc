@@ -9,6 +9,7 @@
 #include <cassert>
 #include <memory>
 #include <optional>
+#include <vector>
 
 
 // this function is called for every token, returns token type (INTEGER, '+', '-'...)
@@ -24,20 +25,20 @@ ast::Program *bisonProgramResult = nullptr;
 %union {
     int integer;
     double floating;
-    std::string *ident;
+    std::string *identType;
     ast::Stmt *stmtType;
     ast::Expr *exprType;
+    std::vector<std::string> *argListType;
 }
 
 // INTEGER token type uses the 'integer' field from the union
 %token <integer>  INTEGER
-%token <ident>    IDENT
-%token <ident>    KEYWORD
+%token <identType> ident
 %token <floating> FLOATING
 %token NEWLINE INDENT DEDENT
 %token KW_FN
 
-%token '(' ')'
+%token '(' ')' ','
 %token '+' '-' '*' '/'
 
 // precedence rules
@@ -48,6 +49,7 @@ ast::Program *bisonProgramResult = nullptr;
 // expr rule uses the 'expr' field from the union
 %type <exprType> expr
 %type <stmtType> statement
+%type <argListType> argList
 
 %%
 
@@ -66,7 +68,7 @@ program: expr NEWLINE {
 expr
     : INTEGER       { $$ = new ast::Expr(ast::Integer{$1}); }
     | FLOATING      { $$ = new ast::Expr(ast::Floating{$1}); }
-    | IDENT '(' ')' { $$ = new ast::Expr(ast::Call(*$1)); delete $1; }
+    | ident '(' ')' { $$ = new ast::Expr(ast::Call(*$1)); delete $1; }
     | '(' expr ')'  { $$ = $2; }
     | '-' expr      { $$ = new ast::Expr(ast::Prefix('-', *$2)); delete $2; }
     | expr '+' expr { $$ = new ast::Expr(ast::Infix(*$1, '+', *$3)); delete $1; delete $3; }
@@ -75,7 +77,12 @@ expr
     | expr '/' expr { $$ = new ast::Expr(ast::Infix(*$1, '/', *$3)); delete $1; delete $3; };
 
 statement
-    : KW_FN IDENT '(' ')' INDENT expr DEDENT { $$ = new ast::Stmt(ast::FnDef()); delete $6; };
+    : KW_FN ident '(' argList ')' INDENT expr DEDENT { $$ = new ast::Stmt(ast::FnDef(*$2, *$4, *$7)); delete $2; delete $4; delete $7; };
+
+
+argList
+    : ident             { $$ = new std::vector<std::string>{*$1}; delete $1; }
+    | ident ',' argList { $$ = $3; $$->insert($$->begin(), *$1); delete $1; };
 
 %%
 
