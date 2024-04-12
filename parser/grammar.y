@@ -56,9 +56,12 @@ stmtBlock
     : KW_FN ident '(' idents ')' INDENT expr DEDENT { $$ = make_shared<FnDef>(cast<Ident>($2), cast<IdentList>($3), cast<Expr>($7)); };
 
 
-idents
-    : ident            { auto list = make_shared<IdentList>(); list->cons(cast<Ident>($1)); $$ = list; }
-    | ident ',' idents { cast<IdentList>($3)->cons(cast<Ident>($1)); };
+
+idents : idents1 { $$ = $1; }
+       |         { $$ = make_shared<IdentList>(); };
+idents1
+    : ident             { auto list = make_shared<IdentList>(); list->cons(cast<Ident>($1)); $$ = list; }
+    | ident ',' idents1 { cast<IdentList>($3)->cons(cast<Ident>($1)); };
 %%
 
 namespace yy {

@@ -20,8 +20,7 @@
 #include "lexer.h"
 #include "ast.h"
 #include "parse.h"
-#include "moduleBuilder.h"
-#include "grammar.tab.hh"
+#include "emit.h"
 
 using namespace llvm;
 
@@ -63,33 +62,26 @@ int main(int argc, char **argv) {
         auto *presult = result.get();
 
         if (auto *expr = dynamic_cast<ast::Expr*>(presult)) {
-            ModuleBuilder modBuilder(context, "jitCalc_child");
 
-            modBuilder.createFunction("func", modBuilder.getInt32Ty());
-            modBuilder.setCurrentFunction("func");
-
-            auto *v = modBuilder.emitExpression(*expr);
-            modBuilder.emitPrint(v);
-            modBuilder.emitReturn(modBuilder.getInt32(0));
-            modBuilder.printModule();
+            Emit emit(context, "jitCalc_child");
+            emit.startFunction("func");
+            auto *v = emit.emitExpression(*expr);
+            emit.emitPrint(v);
+            emit.emitReturn(emit.emitInt32(0));
 
             // run module in JIT engine
-            Module *mod = modBuilder.getModule();
-            Function *fn = modBuilder.getFunction("func");
-            executionEngine->addModule(modBuilder.moveModule());
+            emit.mod().printModule();
+            Module *mod = emit.mod().getModule();
+            Function *fn = emit.mod().getFunction("func");
+            executionEngine->addModule(emit.mod().moveModule());
             std::vector<GenericValue> noArgs;
             executionEngine->runFunction(fn, noArgs);
             executionEngine->removeModule(mod);
         } else if (auto *fnDef = dynamic_cast<ast::FnDef*>(presult)) {
+            Emit emit(context, "jitCalc_child");
+            emit.emitFuncDef(*fnDef);
 
-            ModuleBuilder modBuilder(context, "jitCalc_" + fnDef->name->ident);
-            modBuilder.createFunction(fnDef->name->ident, modBuilder.getFloatTy());
-            modBuilder.setCurrentFunction(fnDef->name->ident);
-            auto *v = modBuilder.emitExpression(*fnDef->body);
-            auto *v2 = modBuilder.emitConvertToFloat(v);
-            modBuilder.emitReturn(v2);
-
-            executionEngine->addModule(modBuilder.moveModule());
+            executionEngine->addModule(emit.mod().moveModule());
         }
     }
 

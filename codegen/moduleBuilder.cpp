@@ -18,6 +18,10 @@ ModuleBuilder::ModuleBuilder(LLVMContext &context, const std::string &name)
             irModule.get());
 }
 
+Value* ModuleBuilder::createCall(const std::string &name, const std::vector<Value*> &args) {
+    return irBuilder.CreateCall(irModule->getFunction(name), args);
+}
+
 void ModuleBuilder::createExtern(const std::string &name, Type *returnType) {
     FunctionType *fnType = FunctionType::get(returnType, {}, false);
     assert(fnType != nullptr);
@@ -41,146 +45,6 @@ void ModuleBuilder::setCurrentFunction(const std::string &name) {
     irBuilder.SetInsertPoint(&fn->back());
 }
 
-void ModuleBuilder::emitReturn(Value *value) {
-    assert(curFn != nullptr);
-    irBuilder.CreateRet(value);
-}
-
 void ModuleBuilder::printModule() {
     irModule->print(outs(), nullptr);
-}
-
-Value* ModuleBuilder::emitConvertToFloat(Value *value) {
-    if (value->getType() == irBuilder.getInt32Ty()) {
-        return irBuilder.CreateSIToFP(value, getFloatTy());
-    } else if (value->getType() == getFloatTy()) {
-        return value;
-    } else {
-        assert(false);
-    }
-}
-
-void ModuleBuilder::emitPrint(Value *value) {
-    std::vector<Value*> printfArgs;
-
-    if (value->getType() == irBuilder.getInt32Ty()) {
-        Value *format = irBuilder.CreateGlobalStringPtr("%d\n");
-        printfArgs = {format, value};
-    }
-    else if (value->getType() == getFloatTy()) {
-        Value *format = irBuilder.CreateGlobalStringPtr("%f\n");
-
-        Value *doub = irBuilder.CreateFPExt(value, irBuilder.getDoubleTy());
-        printfArgs = {format, doub};
-    } else {
-        assert(false);
-    }
-
-    irBuilder.CreateCall(irModule->getFunction("printf"), printfArgs);
-}
-
-Value* ModuleBuilder::emitExpression(const ast::Expr &expr) {
-    if (auto *integer = dynamic_cast<const ast::Integer*>(&expr)) {
-        return irBuilder.getInt32(integer->integer);
-    }
-    if (auto *floating = dynamic_cast<const ast::Floating*>(&expr)) {
-        Constant *flt = ConstantFP::get(getFloatTy(), floating->floating);
-        return irBuilder.CreateFPCast(flt, getFloatTy());
-    }
-    if (auto *infix = dynamic_cast<const ast::Infix*>(&expr)) {
-        return emitInfix(*infix);
-    }
-    if (auto *prefix = dynamic_cast<const ast::Prefix*>(&expr)) {
-        return emitPrefix(*prefix);
-    }
-    if (auto *call = dynamic_cast<const ast::Call*>(&expr)) {
-        if (call->name == "pi") {
-            Constant *piConst = ConstantFP::get(getFloatTy(), M_PI);
-            return irBuilder.CreateFPCast(piConst, getFloatTy());
-        } else {
-            createExtern(call->name, getFloatTy());
-            return irBuilder.CreateCall(irModule->getFunction(call->name), {});
-        }
-    }
-    assert(false);
-    return nullptr;
-}
-
-Value* ModuleBuilder::emitInfix(const ast::Infix &infix) {
-    auto *left = emitExpression(*infix.left);
-    auto *right = emitExpression(*infix.right);
-
-
-    if (right->getType() == irBuilder.getInt32Ty() && left->getType() == irBuilder.getInt32Ty()) {
-        switch (infix.symbol.symbol) { 
-        case '+': return irBuilder.CreateAdd(left, right,  "infix");
-        case '-': return irBuilder.CreateSub(left, right,  "infix");
-        case '*': return irBuilder.CreateMul(left, right,  "infix");
-        case '/': return irBuilder.CreateSDiv(left, right, "infix");
-        default: assert(false); break;
-        }
-    }
-
-    if (right->getType() == getFloatTy() && left->getType() == getFloatTy()) {
-        switch (infix.symbol.symbol) { 
-        case '+': return irBuilder.CreateFAdd(left, right,  "infix");
-        case '-': return irBuilder.CreateFSub(left, right,  "infix");
-        case '*': return irBuilder.CreateFMul(left, right,  "infix");
-        case '/': return irBuilder.CreateFDiv(left, right, "infix");
-        default: assert(false); break;
-        }
-    }
-
-
-    if (
-        (right->getType() == irBuilder.getInt32Ty() && left->getType() == getFloatTy()) ||
-        (right->getType() == getFloatTy() && left->getType() == irBuilder.getInt32Ty())
-    ) {
-        Value *rightFloat = right;
-        Value *leftFloat = left;
-
-        if (right->getType() == irBuilder.getInt32Ty()) {
-            rightFloat = irBuilder.CreateSIToFP(right, getFloatTy());
-        }
-        if (left->getType() == irBuilder.getInt32Ty()) {
-            leftFloat = irBuilder.CreateSIToFP(left, getFloatTy());
-        }
-
-        switch (infix.symbol.symbol) { 
-        case '+': return irBuilder.CreateFAdd(leftFloat, rightFloat,  "infix");
-        case '-': return irBuilder.CreateFSub(leftFloat, rightFloat,  "infix");
-        case '*': return irBuilder.CreateFMul(leftFloat, rightFloat,  "infix");
-        case '/': return irBuilder.CreateFDiv(leftFloat, rightFloat, "infix");
-        default: assert(false); break;
-        }
-    }
-
-
-
-    assert(false);
-    return nullptr;
-}
-
-Value* ModuleBuilder::emitPrefix(const ast::Prefix &prefix) {
-    auto *right = emitExpression(*prefix.right);
-
-    // Value is integer
-    if (right->getType() == irBuilder.getInt32Ty()) {
-        if (prefix.symbol.symbol == '-') {
-            return irBuilder.CreateSub(irBuilder.getInt32(0), right, "prefix");
-        }
-        assert(false);
-    }
-
-    // Value is float
-    if (right->getType() == getFloatTy()) {
-        Constant *zeroConst = ConstantFP::get(getFloatTy(), 0.0);
-        if (prefix.symbol.symbol == '-') {
-            return irBuilder.CreateFSub(zeroConst, right, "prefix");
-        }
-        assert(false);
-    }
-
-    assert(false);
-    return nullptr;
 }

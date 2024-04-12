@@ -15,22 +15,16 @@ public:
     void createExtern(const std::string &name, Type *returnType);
     void createFunction(const std::string &name, Type *returnType);
     void setCurrentFunction(const std::string &name);
-
-    void   emitPrint(Value *value);
-    void   emitReturn(Value *value);
-    Value* emitExpression(const ast::Expr &);
-    Value* emitInfix(const ast::Infix &);
-    Value* emitPrefix(const ast::Prefix &);
-    Value* emitConvertToFloat(Value *value);
+    Value* createCall(const std::string &name, const std::vector<Value*> &args);
 
     void printModule();
 
     Type *getInt32Ty() { return irBuilder.getInt32Ty(); }
     Type *getFloatTy() { return irBuilder.getFloatTy(); }
-    Value *getInt32(int n)  { return irBuilder.getInt32(n); }
     Function *getFunction(const std::string &name) { return irModule->getFunction(name); }
     Module *getModule() { return irModule.get(); }
     std::unique_ptr<Module> moveModule() { return std::move(irModule); }
+    IRBuilder<> &ir() { return irBuilder; }
 
 private:
     IRBuilder<>             irBuilder;
