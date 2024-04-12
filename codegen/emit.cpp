@@ -4,19 +4,44 @@
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Instructions.h>
 
+using namespace llvm;
+
 
 Emit::Emit(LLVMContext &context, const std::string &name)
     : builder(context, name) {
 }
 
 
+void Emit::emitFuncExtern(const std::string &name, size_t numArgs) {
+    symTab.insert(name, SymbolTable::ObjFunc{numArgs});
+    std::vector<Type*> argTypes(numArgs, builder.ir().getFloatTy());
+    builder.createExtern(name, argTypes, builder.ir().getFloatTy());
+}
+
 void Emit::emitFuncDef(const ast::FnDef& fnDef) {
-    builder.createFunction(fnDef.name->ident, builder.ir().getFloatTy());
+    symTab.insert(fnDef.name->ident, SymbolTable::ObjFunc{fnDef.args->size()});
+
+    std::vector<Type*> argTypes;
+    for (int i = 0; i < fnDef.args->size(); i++) {
+        argTypes.push_back(builder.ir().getFloatTy());
+    }
+
+    builder.createFunction(fnDef.name->ident, argTypes, builder.ir().getFloatTy());
     builder.setCurrentFunction(fnDef.name->ident);
+
+    symTab.pushScope();
+
+    for (int i = 0; i < fnDef.args->size(); i++) {
+        std::cout << "defining: " << (*fnDef.args).identList[i]->ident << std::endl;
+        symTab.insert((*fnDef.args).identList[i]->ident,
+                      SymbolTable::ObjFloat{builder.getCurrentFuncArg(i)});
+    }
 
     auto *v1 = emitExpression(*fnDef.body);
     auto *v2 = emitConvertToFloat(v1);
     emitReturn(v2);
+
+    symTab.popScope();
 }
 
 
@@ -30,7 +55,7 @@ Value* Emit::emitFloat(float f) {
 }
 
 void Emit::startFunction(const std::string &name) {
-    builder.createFunction(name, builder.getInt32Ty());
+    builder.createFunction(name, {}, builder.getInt32Ty());
     builder.setCurrentFunction(name);
 }
 
@@ -61,12 +86,39 @@ Value* Emit::emitExpression(const ast::Expr &expr) {
     if (auto *prefix = dynamic_cast<const ast::Prefix*>(&expr)) {
         return emitPrefix(*prefix);
     }
+    if (auto *ident = dynamic_cast<const ast::Ident*>(&expr)) {
+        auto object = symTab.look(ident->ident);
+        if (std::holds_alternative<SymbolTable::ObjFloat>(object)) {
+            return std::get<SymbolTable::ObjFloat>(object).value;
+        }
+
+        assert(false);
+    }
     if (auto *call = dynamic_cast<const ast::Call*>(&expr)) {
         if (call->name == "pi") {
             return emitFloat(M_PI);
         } else {
-            builder.createExtern(call->name, builder.getFloatTy());
-            return builder.createCall(call->name, {});
+
+            auto object = symTab.look(call->name);
+            if (std::holds_alternative<SymbolTable::ObjFunc>(object)) {
+                size_t num_args = std::get<SymbolTable::ObjFunc>(object).numArgs;
+                assert(call->args->size() == num_args);
+
+                std::vector<Value*> vals;
+                for (auto exprPtr : (*call->args).exprList) {
+                    vals.push_back(emitConvertToFloat(emitExpression(*exprPtr)));
+                }
+
+                std::vector<Type*> argTypes;
+                for (int i = 0; i < num_args; i++) {
+                    argTypes.push_back(builder.ir().getFloatTy());
+                }
+
+                builder.createExtern(call->name, argTypes, builder.getFloatTy());
+                return builder.createCall(call->name, vals);
+            }
+
+            assert(false);
         }
     }
     assert(false);

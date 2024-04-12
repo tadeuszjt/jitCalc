@@ -5,29 +5,27 @@
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/LLVMContext.h>
 
-using namespace llvm;
-
-
 class ModuleBuilder {
 public:
-    ModuleBuilder(LLVMContext &context, const std::string &name);
+    ModuleBuilder(llvm::LLVMContext &context, const std::string &name);
 
-    void createExtern(const std::string &name, Type *returnType);
-    void createFunction(const std::string &name, Type *returnType);
+    void createExtern(const std::string &name, const std::vector<llvm::Type*> &argTypes, llvm::Type *returnType);
+    void createFunction(const std::string &name, const std::vector<llvm::Type*> &argTypes, llvm::Type *returnType);
     void setCurrentFunction(const std::string &name);
-    Value* createCall(const std::string &name, const std::vector<Value*> &args);
+    llvm::Argument *getCurrentFuncArg(size_t argIndex);
+    llvm::Value* createCall(const std::string &name, const std::vector<llvm::Value*> &args);
 
     void printModule();
 
-    Type *getInt32Ty() { return irBuilder.getInt32Ty(); }
-    Type *getFloatTy() { return irBuilder.getFloatTy(); }
-    Function *getFunction(const std::string &name) { return irModule->getFunction(name); }
-    Module *getModule() { return irModule.get(); }
-    std::unique_ptr<Module> moveModule() { return std::move(irModule); }
-    IRBuilder<> &ir() { return irBuilder; }
+    llvm::Type *getInt32Ty() { return irBuilder.getInt32Ty(); }
+    llvm::Type *getFloatTy() { return irBuilder.getFloatTy(); }
+    llvm::Function *getFunction(const std::string &name) { return irModule->getFunction(name); }
+    llvm::Module *getModule() { return irModule.get(); }
+    std::unique_ptr<llvm::Module> moveModule() { return std::move(irModule); }
+    llvm::IRBuilder<> &ir() { return irBuilder; }
 
 private:
-    IRBuilder<>             irBuilder;
-    std::unique_ptr<Module> irModule;
-    Function                *curFn;
+    llvm::IRBuilder<>             irBuilder;
+    std::unique_ptr<llvm::Module> irModule;
+    llvm::Function                *curFn;
 };

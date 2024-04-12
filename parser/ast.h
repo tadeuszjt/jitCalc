@@ -23,7 +23,7 @@ struct Stmt : public Node {
 };
 
 
-struct Ident : public Node {
+struct Ident : public Expr {
     Ident(const std::string &ident) : ident(ident) {}
     ~Ident() override {}
     const std::string ident;
@@ -32,10 +32,18 @@ struct Ident : public Node {
 struct IdentList : public Node {
     IdentList() {}
     void cons(std::shared_ptr<Ident> ident) { identList.insert(identList.begin(), ident); }
+    size_t size() { return identList.size(); }
     std::vector<std::shared_ptr<Ident>> identList;
     ~IdentList() override {}
 };
 
+struct ExprList : public Node {
+    ExprList() {}
+    void cons(std::shared_ptr<Expr> expr) { exprList.insert(exprList.begin(), expr); }
+    size_t size() { return exprList.size(); }
+    std::vector<std::shared_ptr<Expr>> exprList;
+    ~ExprList() override {}
+};
 
 struct Operator : public Node {
     Operator(char symbol) : symbol(symbol) {}
@@ -77,9 +85,12 @@ struct Prefix : public Expr {
 };
 
 struct Call : public Expr {
-    std::string name;
-    Call(const std::string& name) : name(name) {}
+    Call(const std::string& name, const std::shared_ptr<ExprList> args)
+        : name(name), args(args) {}
     ~Call() override {}
+
+    std::string                     name; 
+    const std::shared_ptr<ExprList> args;
 };
 
 struct FnDef : public Stmt {

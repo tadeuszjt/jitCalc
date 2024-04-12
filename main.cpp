@@ -21,6 +21,7 @@
 #include "ast.h"
 #include "parse.h"
 #include "emit.h"
+#include "symbols.h"
 
 using namespace llvm;
 
@@ -52,6 +53,8 @@ int main(int argc, char **argv) {
     auto topModule = std::make_unique<Module>("jitCalc", context);
     ExecutionEngine *executionEngine = EngineBuilder(std::move(topModule)).create();
 
+    SymbolTable symTab;
+
     for (;;) {
         std::string input = getNextInput();
         if (input == "q") {
@@ -62,8 +65,8 @@ int main(int argc, char **argv) {
         auto *presult = result.get();
 
         if (auto *expr = dynamic_cast<ast::Expr*>(presult)) {
-
             Emit emit(context, "jitCalc_child");
+            emit.getSymbolTable() = symTab;
             emit.startFunction("func");
             auto *v = emit.emitExpression(*expr);
             emit.emitPrint(v);
@@ -77,9 +80,13 @@ int main(int argc, char **argv) {
             std::vector<GenericValue> noArgs;
             executionEngine->runFunction(fn, noArgs);
             executionEngine->removeModule(mod);
+
         } else if (auto *fnDef = dynamic_cast<ast::FnDef*>(presult)) {
             Emit emit(context, "jitCalc_child");
+            emit.setSymbolTable(symTab);
             emit.emitFuncDef(*fnDef);
+            emit.mod().printModule();
+            symTab = emit.getSymbolTable();
 
             executionEngine->addModule(emit.mod().moveModule());
         }
