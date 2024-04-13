@@ -43,14 +43,14 @@ using namespace ast;
 %%
 
 program : expr NEWLINE { bisonProgramResult = $1; }
-        | block    { bisonProgramResult = $1; };
+        | block        { bisonProgramResult = $1; };
 
 expr
     : INTEGER             { $$ = $1; }
     | FLOATING            { $$ = $1; }
     | '(' expr ')'        { $$ = $2; }
     | ident               { $$ = $1; }
-    | ident '(' exprs ')' { $$ = make_shared<Call>(cast<Ident>($1).get()->ident, cast<ExprList>($3)); }
+    | ident '(' exprs ')' { $$ = make_shared<Call>(cast<Ident>($1).get()->ident, cast<List<Expr>>($3)); }
     | '-' expr            { $$ = make_shared<Prefix>(Minus, cast<Expr>($2)); }
     | expr '+' expr       { $$ = make_shared<Infix>(cast<Expr>($1), Plus, cast<Expr>($3)); }
     | expr '-' expr       { $$ = make_shared<Infix>(cast<Expr>($1), Minus, cast<Expr>($3)); }
@@ -58,40 +58,37 @@ expr
     | expr '/' expr       { $$ = make_shared<Infix>(cast<Expr>($1), Divide, cast<Expr>($3)); }
     | expr '<' expr       { $$ = make_shared<Infix>(cast<Expr>($1), LT, cast<Expr>($3)); }
     | expr '>' expr       { $$ = make_shared<Infix>(cast<Expr>($1), GT, cast<Expr>($3)); }
-    | expr EqEq expr       { $$ = make_shared<Infix>(cast<Expr>($1), EqEq, cast<Expr>($3)); };
+    | expr EqEq expr      { $$ = make_shared<Infix>(cast<Expr>($1), EqEq, cast<Expr>($3)); };
 
 
 line
     : Return expr { $$ = make_shared<Return>(cast<Expr>($2)); };
 
 block
-    : fn ident '(' idents ')' INDENT stmts1 DEDENT { $$ = make_shared<FnDef>(cast<Ident>($2), cast<IdentList>($4), cast<StmtList>($7)); }
-    | If expr INDENT stmts1 DEDENT                 { $$ = make_shared<If>(cast<Expr>($2), cast<StmtList>($4)); };
+    : fn ident '(' idents ')' INDENT stmts1 DEDENT { $$ = make_shared<FnDef>(cast<Ident>($2), cast<List<Ident>>($4), cast<List<Stmt>>($7)); }
+    | If expr INDENT stmts1 DEDENT                 { $$ = make_shared<If>(cast<Expr>($2), cast<List<Stmt>>($4)); };
 
 stmts1
-    : line NEWLINE        { auto list = make_shared<StmtList>(); list->cons(cast<Stmt>($1)); $$ = list; }
-    | block               { auto list = make_shared<StmtList>(); list->cons(cast<Stmt>($1)); $$ = list; }
-    | line NEWLINE stmts1 { cast<StmtList>($3)->cons(cast<Stmt>($1)); $$ = $3; }
-    | block        stmts1 { cast<StmtList>($2)->cons(cast<Stmt>($1)); $$ = $2; };
+    : line NEWLINE        { $$ = make_shared<List<Stmt>>(cast<Stmt>($1)); }
+    | block               { $$ = make_shared<List<Stmt>>(cast<Stmt>($1)); }
+    | line NEWLINE stmts1 { cast<List<Stmt>>($3)->cons(cast<Stmt>($1)); $$ = $3; }
+    | block        stmts1 { cast<List<Stmt>>($2)->cons(cast<Stmt>($1)); $$ = $2; };
 
 
 idents
     : idents1 { $$ = $1; }
-    |         { $$ = make_shared<IdentList>(); };
+    |         { $$ = make_shared<List<Ident>>(); };
 idents1
-    : ident             { auto list = make_shared<IdentList>(); list->cons(cast<Ident>($1)); $$ = list; }
-    | ident ',' idents1 { cast<IdentList>($3)->cons(cast<Ident>($1)); $$ = $3; };
+    : ident             { $$ = make_shared<List<Ident>>(cast<Ident>($1)); }
+    | ident ',' idents1 { cast<List<Ident>>($3)->cons(cast<Ident>($1)); $$ = $3; };
 
 
 exprs
     : exprs1 { $$ = $1; }
-    |        { $$ = make_shared<IdentList>(); };
+    |        { $$ = make_shared<List<Ident>>(); };
 exprs1
-    : expr            { auto list = make_shared<ExprList>(); list->cons(cast<Expr>($1)); $$ = list; }
-    | expr ',' exprs1 { cast<ExprList>($3)->cons(cast<Expr>($1)); $$ = $3; };
-
-
-
+    : expr            { $$ = make_shared<List<Expr>>(cast<Expr>($1)); }
+    | expr ',' exprs1 { cast<List<Expr>>($3)->cons(cast<Expr>($1)); $$ = $3; };
     
 %%
 

@@ -33,6 +33,21 @@ struct Stmt : public Node {
 };
 
 
+// a class to represent a list of nodes such as a comma-separated list of expressions.
+template <typename T>
+class List : public Node {
+public:
+    List() {}
+    ~List() override {}
+
+    List(std::shared_ptr<T> item) { list.push_back(item); }
+    void cons(std::shared_ptr<T> item) { list.insert(list.begin(), item); }
+    size_t size() { return list.size(); }
+
+    std::vector<std::shared_ptr<T>> list;
+};
+
+
 struct Return : public Stmt {
     virtual ~Return() override {}
     Return(const std::shared_ptr<Expr> expr) : expr(expr) {}
@@ -46,30 +61,6 @@ struct Ident : public Expr {
     const std::string ident;
 };
 
-
-struct StmtList : public Node {
-    StmtList() {}
-    ~StmtList() override {}
-    void cons(std::shared_ptr<Stmt> stmt) { stmtList.insert(stmtList.begin(), stmt); }
-    std::vector<std::shared_ptr<Stmt>> stmtList;
-};
-
-
-struct IdentList : public Node {
-    IdentList() {}
-    void cons(std::shared_ptr<Ident> ident) { identList.insert(identList.begin(), ident); }
-    size_t size() { return identList.size(); }
-    std::vector<std::shared_ptr<Ident>> identList;
-    ~IdentList() override {}
-};
-
-struct ExprList : public Node {
-    ExprList() {}
-    void cons(std::shared_ptr<Expr> expr) { exprList.insert(exprList.begin(), expr); }
-    size_t size() { return exprList.size(); }
-    std::vector<std::shared_ptr<Expr>> exprList;
-    ~ExprList() override {}
-};
 
 struct Integer : public Expr {
     Integer(int integer) : integer(integer) {}
@@ -104,23 +95,23 @@ struct Prefix : public Expr {
 };
 
 struct Call : public Expr {
-    Call(const std::string& name, const std::shared_ptr<ExprList> args)
+    Call(const std::string& name, const std::shared_ptr<List<Expr>> args)
         : name(name), args(args) {}
     ~Call() override {}
 
     std::string                     name; 
-    const std::shared_ptr<ExprList> args;
+    const std::shared_ptr<List<Expr>> args;
 };
 
 struct FnDef : public Stmt {
     FnDef(const std::shared_ptr<Ident> name,
-          const std::shared_ptr<IdentList> args,
-          const std::shared_ptr<StmtList> body)
+          const std::shared_ptr<List<Ident>> args,
+          const std::shared_ptr<List<Stmt>> body)
             : name(name), args(args), body(body) {}
 
     const std::shared_ptr<Ident> name;
-    const std::shared_ptr<IdentList> args;
-    const std::shared_ptr<StmtList> body;
+    const std::shared_ptr<List<Ident>> args;
+    const std::shared_ptr<List<Stmt>> body;
 
     ~FnDef() override {}
 };
@@ -128,11 +119,11 @@ struct FnDef : public Stmt {
 
 struct If : public Stmt {
     If(const std::shared_ptr<Expr> cnd,
-       const std::shared_ptr<StmtList> body)
+       const std::shared_ptr<List<Stmt>> body)
             : cnd(cnd), body(body) {}
 
     const std::shared_ptr<Expr> cnd;
-    const std::shared_ptr<StmtList> body;
+    const std::shared_ptr<List<Stmt>> body;
 
     ~If() override {}
 };

@@ -40,7 +40,7 @@ void Emit::emitStmt(const ast::Stmt &stmt) {
 
         builder.setCurrentBlock(True);
         symTab.pushScope();
-        for (std::shared_ptr<ast::Stmt> &stmtPtr : (*if_->body).stmtList) {
+        for (std::shared_ptr<ast::Stmt> &stmtPtr : (*if_->body).list) {
             emitStmt(*stmtPtr);
         }
         symTab.popScope();
@@ -63,12 +63,12 @@ void Emit::emitFuncDef(const ast::FnDef& fnDef) {
     symTab.pushScope();
 
     for (int i = 0; i < fnDef.args->size(); i++) {
-        std::cout << "defining: " << (*fnDef.args).identList[i]->ident << std::endl;
-        symTab.insert((*fnDef.args).identList[i]->ident,
+        std::cout << "defining: " << (*fnDef.args).list[i]->ident << std::endl;
+        symTab.insert((*fnDef.args).list[i]->ident,
                       SymbolTable::ObjFloat{builder.getCurrentFuncArg(i)});
     }
 
-    for (std::shared_ptr<ast::Stmt> &stmtPtr : (*fnDef.body).stmtList) {
+    for (std::shared_ptr<ast::Stmt> &stmtPtr : (*fnDef.body).list) {
         emitStmt(*stmtPtr);
     }
 
@@ -127,7 +127,7 @@ Value* Emit::emitExpression(const ast::Expr &expr) {
             assert(call->args->size() == num_args);
 
             std::vector<Value*> vals;
-            for (auto exprPtr : (*call->args).exprList) {
+            for (auto exprPtr : (*call->args).list) {
                 vals.push_back(emitExpression(*exprPtr));
             }
 
