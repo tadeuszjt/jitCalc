@@ -8,7 +8,7 @@
 // Implements a custom lexer to turn strings into vectors of tokens.
 
 
-const std::vector keywords = {"fn"};
+const std::vector keywords = {"fn", "if", "else", "return"};
 
 enum TokenSpace {
     SPACE_NEWLINE,

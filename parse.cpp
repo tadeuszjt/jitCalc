@@ -39,7 +39,16 @@ int yylex(yy::parser::semantic_type *un) {
     if (std::holds_alternative<TokenKeyword>(token)) {
         auto keyword = std::string(std::get<TokenKeyword>(token).str);
         if (keyword == "fn") {
-            return yy::parser::token::KW_FN;
+            return yy::parser::token::fn;
+        }
+        if (keyword == "if") {
+            return yy::parser::token::If;
+        }
+        if (keyword == "else") {
+            return yy::parser::token::Else;
+        }
+        if (keyword == "return") {
+            return yy::parser::token::Return;
         }
 
         assert(false);

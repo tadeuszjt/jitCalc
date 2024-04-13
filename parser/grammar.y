@@ -30,7 +30,7 @@ using namespace ast;
 
 
 %token NEWLINE INDENT DEDENT INTEGER FLOATING ident
-%token KW_FN
+%token fn If Else Return
 %token '(' ')' ','
 %token '+' '-' '*' '/'
 
@@ -42,7 +42,7 @@ using namespace ast;
 %%
 
 program : expr NEWLINE { bisonProgramResult = $1; }
-        | stmtBlock    { bisonProgramResult = $1; };
+        | block    { bisonProgramResult = $1; };
 
 expr
     : INTEGER             { $$ = $1; }
@@ -57,13 +57,23 @@ expr
     | expr '/' expr       { $$ = make_shared<Infix>(cast<Expr>($1), '/', cast<Expr>($3)); };
 
 
-stmtBlock
-    : KW_FN ident '(' idents ')' INDENT expr DEDENT { $$ = make_shared<FnDef>(cast<Ident>($2), cast<IdentList>($4), cast<Expr>($7)); };
+line
+    : Return expr { $$ = make_shared<Return>(cast<Expr>($2)); };
+
+block
+    : fn ident '(' idents ')' INDENT stmts1 DEDENT { $$ = make_shared<FnDef>(cast<Ident>($2), cast<IdentList>($4), cast<StmtList>($7)); };
+    //| If expr INDENT stmts1 DEDENT                 { $$ = make_shared<If>(cast<Expr>($2), cast<StmtList>($4)); };
+
+stmts1
+    : line NEWLINE        { auto list = make_shared<StmtList>(); list->cons(cast<Stmt>($1)); $$ = list; }
+    | block               { auto list = make_shared<StmtList>(); list->cons(cast<Stmt>($1)); $$ = list; }
+    | line NEWLINE stmts1 { cast<StmtList>($3)->cons(cast<Stmt>($1)); $$ = $3; }
+    | block        stmts1 { cast<StmtList>($2)->cons(cast<Stmt>($1)); $$ = $2; };
 
 
-
-idents : idents1 { $$ = $1; }
-       |         { $$ = make_shared<IdentList>(); };
+idents
+    : idents1 { $$ = $1; }
+    |         { $$ = make_shared<IdentList>(); };
 idents1
     : ident             { auto list = make_shared<IdentList>(); list->cons(cast<Ident>($1)); $$ = list; }
     | ident ',' idents1 { cast<IdentList>($3)->cons(cast<Ident>($1)); $$ = $3; };
@@ -75,6 +85,10 @@ exprs
 exprs1
     : expr            { auto list = make_shared<ExprList>(); list->cons(cast<Expr>($1)); $$ = list; }
     | expr ',' exprs1 { cast<ExprList>($3)->cons(cast<Expr>($1)); $$ = $3; };
+
+
+
+    
 %%
 
 namespace yy {

@@ -102,7 +102,7 @@ private:
             indentStack.push_back(spaces);
             return {SPACE_INDENT};
         } else {
-            std::vector<TokenSpace> tokens;
+            std::vector<TokenSpace> tokens = {SPACE_NEWLINE};
             for (; spaces != indentStack.back(); indentStack.pop_back()) {
                 assert(indentStack.size() > 0);
                 tokens.push_back(SPACE_DEDENT);

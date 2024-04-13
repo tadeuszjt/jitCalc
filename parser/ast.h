@@ -6,9 +6,9 @@
 #include <cassert>
 #include <vector>
 
-// defines the AST as several types. Provides the << operator to print to std::cout.
 namespace ast {
 
+struct Stmt;
 
 struct Node {
     virtual ~Node() { }
@@ -23,11 +23,27 @@ struct Stmt : public Node {
 };
 
 
+struct Return : public Stmt {
+    virtual ~Return() override {}
+    Return(const std::shared_ptr<Expr> expr) : expr(expr) {}
+    const std::shared_ptr<Expr> expr;
+};
+
+
 struct Ident : public Expr {
     Ident(const std::string &ident) : ident(ident) {}
     ~Ident() override {}
     const std::string ident;
 };
+
+
+struct StmtList : public Node {
+    StmtList() {}
+    ~StmtList() override {}
+    void cons(std::shared_ptr<Stmt> stmt) { stmtList.insert(stmtList.begin(), stmt); }
+    std::vector<std::shared_ptr<Stmt>> stmtList;
+};
+
 
 struct IdentList : public Node {
     IdentList() {}
@@ -96,12 +112,12 @@ struct Call : public Expr {
 struct FnDef : public Stmt {
     FnDef(const std::shared_ptr<Ident> name,
           const std::shared_ptr<IdentList> args,
-          const std::shared_ptr<Expr> body)
+          const std::shared_ptr<StmtList> body)
             : name(name), args(args), body(body) {}
 
     const std::shared_ptr<Ident> name;
     const std::shared_ptr<IdentList> args;
-    const std::shared_ptr<Expr> body;
+    const std::shared_ptr<StmtList> body;
 
     ~FnDef() override {}
 };
