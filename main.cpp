@@ -70,7 +70,7 @@ int main(int argc, char **argv) {
             emit.startFunction("func");
             auto *v = emit.emitExpression(*expr);
             emit.emitPrint(v);
-            emit.emitReturn(emit.emitInt32(0));
+            emit.emitReturnNoBlock(emit.emitInt32(0));
 
             // run module in JIT engine
             emit.mod().printModule();

@@ -28,7 +28,19 @@ int yylex(yy::parser::semantic_type *un) {
     }
 
     if (std::holds_alternative<TokenSymbol>(token)) {
-        return std::get<TokenSymbol>(token);
+        auto symbol = std::get<TokenSymbol>(token);
+        if (symbol == "+") { return '+'; }
+        if (symbol == "-") { return '-'; }
+        if (symbol == "*") { return '*'; }
+        if (symbol == "/") { return '/'; }
+        if (symbol == "(") { return '('; }
+        if (symbol == ")") { return ')'; }
+        if (symbol == "<") { return '<'; }
+        if (symbol == ">") { return '>'; }
+        if (symbol == "==") { return yy::parser::token::EqEq; }
+
+        std::cerr << "symbol was: " << symbol << std::endl;
+        assert(false);
     }
 
     if (std::holds_alternative<TokenIdent>(token)) {

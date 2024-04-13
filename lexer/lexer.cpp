@@ -1,6 +1,7 @@
 #include "lexer.h"
 #include <cctype>
 #include <cassert>
+#include <algorithm>
 
 // this class is used to store stack of indent spaces during lexing.
 class Lexer {
@@ -172,14 +173,14 @@ private:
     LexResult lexSymbol() {
         std::string::iterator it = start;
 
-        std::string symbols = "+-*/(),";
+        if (it != end && std::find(doubleSymbols.begin(), doubleSymbols.end(), std::string(it, it + 2)) != doubleSymbols.end()) {
+            it += 2;
+            return LexSuccess(it, TokenSymbol{std::string(it - 2, it)});
+        }
 
         if (it != end && symbols.find(*it) != std::string::npos) {
             it++;
-        }
-
-        if (it != start) {
-            return LexSuccess(it, TokenSymbol{*(it - 1)});
+            return LexSuccess(it, TokenSymbol{std::string(it - 1, it)});
         }
 
         return std::nullopt;

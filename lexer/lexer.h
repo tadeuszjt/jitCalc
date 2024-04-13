@@ -10,6 +10,9 @@
 
 const std::vector keywords = {"fn", "if", "else", "return"};
 
+const std::string symbols = "+-*/()><";
+const std::vector<std::string> doubleSymbols = {"=="};
+
 enum TokenSpace {
     SPACE_NEWLINE,
     SPACE_INDENT,
@@ -28,7 +31,7 @@ struct TokenIdent {
 
 using TokenInt = int;
 using TokenFloat = double;
-using TokenSymbol = char;
+using TokenSymbol = std::string;
 
 using Token = std::variant<TokenInt, TokenFloat, TokenIdent, TokenKeyword, TokenSymbol, TokenSpace>;
 

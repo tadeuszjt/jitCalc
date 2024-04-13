@@ -32,12 +32,13 @@ using namespace ast;
 %token NEWLINE INDENT DEDENT INTEGER FLOATING ident
 %token fn If Else Return
 %token '(' ')' ','
-%token '+' '-' '*' '/'
+%token '+' '-' '*' '/' '<' '>' EqEq
 
 // precedence rules
+%left EqEq
+%left '>' '<'
 %left '+' '-'
-%left '*'
-%left '/'
+%left '*' '/'
 
 %%
 
@@ -50,19 +51,22 @@ expr
     | '(' expr ')'        { $$ = $2; }
     | ident               { $$ = $1; }
     | ident '(' exprs ')' { $$ = make_shared<Call>(cast<Ident>($1).get()->ident, cast<ExprList>($3)); }
-    | '-' expr            { $$ = make_shared<Prefix>('-', cast<Expr>($2)); }
-    | expr '+' expr       { $$ = make_shared<Infix>(cast<Expr>($1), '+', cast<Expr>($3)); }
-    | expr '-' expr       { $$ = make_shared<Infix>(cast<Expr>($1), '-', cast<Expr>($3)); }
-    | expr '*' expr       { $$ = make_shared<Infix>(cast<Expr>($1), '*', cast<Expr>($3)); }
-    | expr '/' expr       { $$ = make_shared<Infix>(cast<Expr>($1), '/', cast<Expr>($3)); };
+    | '-' expr            { $$ = make_shared<Prefix>(Minus, cast<Expr>($2)); }
+    | expr '+' expr       { $$ = make_shared<Infix>(cast<Expr>($1), Plus, cast<Expr>($3)); }
+    | expr '-' expr       { $$ = make_shared<Infix>(cast<Expr>($1), Minus, cast<Expr>($3)); }
+    | expr '*' expr       { $$ = make_shared<Infix>(cast<Expr>($1), Times, cast<Expr>($3)); }
+    | expr '/' expr       { $$ = make_shared<Infix>(cast<Expr>($1), Divide, cast<Expr>($3)); }
+    | expr '<' expr       { $$ = make_shared<Infix>(cast<Expr>($1), LT, cast<Expr>($3)); }
+    | expr '>' expr       { $$ = make_shared<Infix>(cast<Expr>($1), GT, cast<Expr>($3)); }
+    | expr EqEq expr       { $$ = make_shared<Infix>(cast<Expr>($1), EqEq, cast<Expr>($3)); };
 
 
 line
     : Return expr { $$ = make_shared<Return>(cast<Expr>($2)); };
 
 block
-    : fn ident '(' idents ')' INDENT stmts1 DEDENT { $$ = make_shared<FnDef>(cast<Ident>($2), cast<IdentList>($4), cast<StmtList>($7)); };
-    //| If expr INDENT stmts1 DEDENT                 { $$ = make_shared<If>(cast<Expr>($2), cast<StmtList>($4)); };
+    : fn ident '(' idents ')' INDENT stmts1 DEDENT { $$ = make_shared<FnDef>(cast<Ident>($2), cast<IdentList>($4), cast<StmtList>($7)); }
+    | If expr INDENT stmts1 DEDENT                 { $$ = make_shared<If>(cast<Expr>($2), cast<StmtList>($4)); };
 
 stmts1
     : line NEWLINE        { auto list = make_shared<StmtList>(); list->cons(cast<Stmt>($1)); $$ = list; }

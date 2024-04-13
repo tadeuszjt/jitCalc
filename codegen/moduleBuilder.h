@@ -15,6 +15,10 @@ public:
     llvm::Argument *getCurrentFuncArg(size_t argIndex);
     llvm::Value* createCall(const std::string &name, const std::vector<llvm::Value*> &args);
 
+    llvm::BasicBlock* appendNewBlock();
+    void setCurrentBlock(llvm::BasicBlock *);
+
+
     void printModule();
 
     llvm::Type *getInt32Ty() { return irBuilder.getInt32Ty(); }

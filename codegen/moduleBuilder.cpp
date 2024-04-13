@@ -21,6 +21,17 @@ Value* ModuleBuilder::createCall(const std::string &name, const std::vector<Valu
     return irBuilder.CreateCall(irModule->getFunction(name), args);
 }
 
+BasicBlock* ModuleBuilder::appendNewBlock() {
+    assert(curFn != nullptr);
+    return BasicBlock::Create(irBuilder.getContext(), "block", curFn);
+}
+
+void ModuleBuilder::setCurrentBlock(BasicBlock *block) {
+    assert(block != nullptr);
+    irBuilder.SetInsertPoint(block);
+}
+
+
 Argument *ModuleBuilder::getCurrentFuncArg(size_t argIndex) {
     assert(curFn != nullptr);
     assert(argIndex < std::distance(curFn->args().begin(), curFn->args().end()));

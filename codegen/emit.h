@@ -21,6 +21,7 @@ public:
 
     llvm::Value* emitInt32(int n);
     void         emitReturn(llvm::Value *value);
+    void         emitReturnNoBlock(llvm::Value *value);
 
     void emitFuncExtern(const std::string &name, size_t numArgs);
 

@@ -29,6 +29,26 @@ void Emit::emitStmt(const ast::Stmt &stmt) {
         emitReturn(e);
         return;
     }
+    if (auto *if_ = dynamic_cast<const ast::If*>(&stmt)) {
+        auto *cnd = emitExpression(*if_->cnd);
+        auto *cmp = builder.ir().CreateICmpEQ(cnd, emitInt32(0));
+
+        BasicBlock *True = builder.appendNewBlock();
+        BasicBlock *end = builder.appendNewBlock();
+
+        builder.ir().CreateCondBr(cmp, end, True);
+
+        builder.setCurrentBlock(True);
+        symTab.pushScope();
+        for (std::shared_ptr<ast::Stmt> &stmtPtr : (*if_->body).stmtList) {
+            emitStmt(*stmtPtr);
+        }
+        symTab.popScope();
+        builder.ir().CreateBr(end);
+
+        builder.setCurrentBlock(end);
+        return;
+    }
 
     assert(false);
 }
@@ -54,6 +74,8 @@ void Emit::emitFuncDef(const ast::FnDef& fnDef) {
 
 
     symTab.popScope();
+
+    emitReturnNoBlock(emitInt32(0));
 }
 
 
@@ -68,9 +90,14 @@ void Emit::startFunction(const std::string &name) {
 }
 
 void Emit::emitReturn(Value *value) {
+    BasicBlock *emptyBlock = builder.appendNewBlock();
     builder.ir().CreateRet(value);
+    builder.setCurrentBlock(emptyBlock);
 }
 
+void Emit::emitReturnNoBlock(Value *value) {
+    builder.ir().CreateRet(value);
+}
 
 Value* Emit::emitExpression(const ast::Expr &expr) {
     if (auto *integer = dynamic_cast<const ast::Integer*>(&expr)) {
@@ -117,11 +144,26 @@ Value* Emit::emitInfix(const ast::Infix &infix) {
     auto *left = emitExpression(*infix.left);
     auto *right = emitExpression(*infix.right);
 
-    switch (infix.symbol.symbol) { 
-    case '+': return builder.ir().CreateAdd(left, right,  "infix");
-    case '-': return builder.ir().CreateSub(left, right,  "infix");
-    case '*': return builder.ir().CreateMul(left, right,  "infix");
-    case '/': return builder.ir().CreateSDiv(left, right, "infix");
+    switch (infix.op) { 
+    case ast::Plus: return builder.ir().CreateAdd(left, right,  "infix");
+    case ast::Minus: return builder.ir().CreateSub(left, right,  "infix");
+    case ast::Times: return builder.ir().CreateMul(left, right,  "infix");
+    case ast::Divide: return builder.ir().CreateSDiv(left, right, "infix");
+    case ast::LT: {
+        auto *cmp = builder.ir().CreateICmpSLT(left, right);
+        auto *i32 = builder.ir().CreateZExt(cmp, builder.getInt32Ty());
+        return i32;
+    }
+    case ast::GT: {
+        auto *cmp = builder.ir().CreateICmpSGT(left, right);
+        auto *i32 = builder.ir().CreateZExt(cmp, builder.getInt32Ty());
+        return i32;
+    }
+    case ast::EqEq: {
+        auto *cmp = builder.ir().CreateICmpEQ(left, right);
+        auto *i32 = builder.ir().CreateZExt(cmp, builder.getInt32Ty());
+        return i32;
+    }
     default: assert(false); break;
     }
 
@@ -133,7 +175,7 @@ Value* Emit::emitPrefix(const ast::Prefix &prefix) {
     auto *right = emitExpression(*prefix.right);
 
     if (right->getType() == builder.getInt32Ty()) {
-        if (prefix.symbol.symbol == '-') {
+        if (prefix.op == ast::Minus) {
             return builder.ir().CreateSub(emitInt32(0), right, "prefix");
         }
         assert(false);

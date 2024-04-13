@@ -8,6 +8,16 @@
 
 namespace ast {
 
+enum Operator {
+    Plus,
+    Minus,
+    Times,
+    Divide,
+    LT,
+    GT,
+    EqEq
+};
+
 struct Stmt;
 
 struct Node {
@@ -61,13 +71,6 @@ struct ExprList : public Node {
     ~ExprList() override {}
 };
 
-struct Operator : public Node {
-    Operator(char symbol) : symbol(symbol) {}
-    const char symbol;
-
-    ~Operator() override {}
-};
-
 struct Integer : public Expr {
     Integer(int integer) : integer(integer) {}
     const int integer;
@@ -82,21 +85,21 @@ struct Floating : public Expr {
 
 struct Infix : public Expr {
     const std::shared_ptr<Expr> left, right;
-    Operator symbol;
+    Operator op;
 
-    Infix(const std::shared_ptr<Expr> left, Operator symbol, const std::shared_ptr<Expr> right) :
+    Infix(const std::shared_ptr<Expr> left, Operator op, const std::shared_ptr<Expr> right) :
         left(left),
         right(right),
-        symbol(symbol)
+        op(op)
     {}
     ~Infix() override {}
 };
 
 struct Prefix : public Expr {
     std::shared_ptr<Expr> right;
-    Operator symbol;
+    Operator op;
 
-    Prefix(Operator symbol, std::shared_ptr<Expr> right) : right(right), symbol(symbol) {}
+    Prefix(Operator op, std::shared_ptr<Expr> right) : right(right), op(op) {}
     ~Prefix() override {}
 };
 
@@ -121,6 +124,19 @@ struct FnDef : public Stmt {
 
     ~FnDef() override {}
 };
+
+
+struct If : public Stmt {
+    If(const std::shared_ptr<Expr> cnd,
+       const std::shared_ptr<StmtList> body)
+            : cnd(cnd), body(body) {}
+
+    const std::shared_ptr<Expr> cnd;
+    const std::shared_ptr<StmtList> body;
+
+    ~If() override {}
+};
+
 
 
 }
