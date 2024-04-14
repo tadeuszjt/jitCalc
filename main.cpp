@@ -4,18 +4,13 @@
 
 #include <iostream>
 #include <cassert>
-#include <cmath>
+
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
-#include <llvm/IR/Constants.h>
-#include <llvm/IR/Instructions.h>
-#include <llvm/IR/IRBuilder.h>
-
-#include "llvm/ExecutionEngine/ExecutionEngine.h"
-#include "llvm/ExecutionEngine/GenericValue.h"
-#include "llvm/ExecutionEngine/MCJIT.h"
-
-#include "llvm/Support/TargetSelect.h"
+#include <llvm/ExecutionEngine/ExecutionEngine.h>
+#include <llvm/ExecutionEngine/Orc/LLJIT.h>
+#include <llvm/ExecutionEngine/Orc/ThreadSafeModule.h>
+#include <llvm/Support/TargetSelect.h>
 
 #include "lexer.h"
 #include "ast.h"
@@ -49,9 +44,12 @@ int main(int argc, char **argv) {
     InitializeNativeTarget();
     LLVMInitializeNativeAsmPrinter();
 
-    LLVMContext context;
-    auto topModule = std::make_unique<Module>("jitCalc", context);
-    ExecutionEngine *executionEngine = EngineBuilder(std::move(topModule)).create();
+    orc::ThreadSafeContext context(std::make_unique<LLVMContext>());
+
+    // in ORCJit, you have to create a dynamic library to add/remove modules
+    auto jit = cantFail(orc::LLJITBuilder().create());
+    auto &dyLib = cantFail(jit->createJITDylib("jitCalc_dyLib"));
+
 
     SymbolTable symTab;
 
@@ -65,30 +63,33 @@ int main(int argc, char **argv) {
         auto *presult = result.get();
 
         if (auto *expr = dynamic_cast<ast::Expr*>(presult)) {
-            Emit emit(context, "jitCalc_child");
+            auto lock = context.getLock();
+
+            Emit emit(*context.getContext(), "jitCalc_child");
             emit.getSymbolTable() = symTab;
             emit.startFunction("func");
             auto *v = emit.emitExpression(*expr);
             emit.emitPrint(v);
             emit.emitReturnNoBlock(emit.emitInt32(0));
-
-            // run module in JIT engine
             emit.mod().printModule();
-            Module *mod = emit.mod().getModule();
-            Function *fn = emit.mod().getFunction("func");
-            executionEngine->addModule(emit.mod().moveModule());
-            std::vector<GenericValue> noArgs;
-            executionEngine->runFunction(fn, noArgs);
-            executionEngine->removeModule(mod);
+
+            auto tracker = dyLib.createResourceTracker();
+            cantFail(jit->addIRModule(tracker, orc::ThreadSafeModule(emit.mod().moveModule(), context)));
+            auto symbol = cantFail(jit->lookup(dyLib, "func"));
+            auto funcPtr = symbol.toPtr<void(*)()>();
+            funcPtr();
+            cantFail(tracker->remove());
 
         } else if (auto *fnDef = dynamic_cast<ast::FnDef*>(presult)) {
-            Emit emit(context, "jitCalc_child");
+            auto lock = context.getLock();
+
+            Emit emit(*context.getContext(), "jitCalc_child");
             emit.setSymbolTable(symTab);
             emit.emitFuncDef(*fnDef);
             emit.mod().printModule();
             symTab = emit.getSymbolTable();
 
-            executionEngine->addModule(emit.mod().moveModule());
+            cantFail(jit->addIRModule(dyLib, orc::ThreadSafeModule(emit.mod().moveModule(), context)));
         }
     }
 

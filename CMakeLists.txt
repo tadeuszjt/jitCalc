@@ -36,7 +36,7 @@ add_executable(jitCalc main.cpp parse.cpp lexer/lexer.cpp parser/ast.cpp codegen
 find_package(LLVM REQUIRED CONFIG)
 include_directories(${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
-llvm_map_components_to_libnames(llvm_libs support core executionengine mcjit native)
+llvm_map_components_to_libnames(llvm_libs support core native orcjit)
 target_link_libraries(jitCalc ${llvm_libs})
 
 

@@ -18,7 +18,6 @@ enum Operator {
     EqEq
 };
 
-struct Stmt;
 
 struct Node {
     virtual ~Node() { }
