@@ -23,14 +23,6 @@ struct Node {
     virtual ~Node() { }
 };
 
-struct Expr : public Node {
-    virtual ~Expr() {}
-};
-
-struct Stmt : public Node {
-    virtual ~Stmt() {}
-};
-
 
 // a class to represent a list of nodes such as a comma-separated list of expressions.
 template <typename T>
@@ -47,37 +39,37 @@ public:
 };
 
 
-struct Return : public Stmt {
+struct Return : public Node {
     virtual ~Return() override {}
-    Return(const std::shared_ptr<Expr> expr) : expr(expr) {}
-    const std::shared_ptr<Expr> expr;
+    Return(const std::shared_ptr<Node> expr) : expr(expr) {}
+    const std::shared_ptr<Node> expr;
 };
 
 
-struct Ident : public Expr {
+struct Ident : public Node {
     Ident(const std::string &ident) : ident(ident) {}
     ~Ident() override {}
     const std::string ident;
 };
 
 
-struct Integer : public Expr {
+struct Integer : public Node {
     Integer(int integer) : integer(integer) {}
     const int integer;
     ~Integer() override {}
 };
 
-struct Floating : public Expr {
+struct Floating : public Node {
     Floating(double floating) : floating(floating) {}
     const double floating;
     ~Floating() override {}
 };
 
-struct Infix : public Expr {
-    const std::shared_ptr<Expr> left, right;
+struct Infix : public Node {
+    const std::shared_ptr<Node> left, right;
     Operator op;
 
-    Infix(const std::shared_ptr<Expr> left, Operator op, const std::shared_ptr<Expr> right) :
+    Infix(const std::shared_ptr<Node> left, Operator op, const std::shared_ptr<Node> right) :
         left(left),
         right(right),
         op(op)
@@ -85,44 +77,44 @@ struct Infix : public Expr {
     ~Infix() override {}
 };
 
-struct Prefix : public Expr {
-    std::shared_ptr<Expr> right;
+struct Prefix : public Node {
+    std::shared_ptr<Node> right;
     Operator op;
 
-    Prefix(Operator op, std::shared_ptr<Expr> right) : right(right), op(op) {}
+    Prefix(Operator op, std::shared_ptr<Node> right) : right(right), op(op) {}
     ~Prefix() override {}
 };
 
-struct Call : public Expr {
-    Call(const std::string& name, const std::shared_ptr<List<Expr>> args)
+struct Call : public Node {
+    Call(const std::string& name, const std::shared_ptr<List<Node>> args)
         : name(name), args(args) {}
     ~Call() override {}
 
     std::string                     name; 
-    const std::shared_ptr<List<Expr>> args;
+    const std::shared_ptr<List<Node>> args;
 };
 
-struct FnDef : public Stmt {
+struct FnDef : public Node {
     FnDef(const std::shared_ptr<Ident> name,
           const std::shared_ptr<List<Ident>> args,
-          const std::shared_ptr<List<Stmt>> body)
+          const std::shared_ptr<List<Node>> body)
             : name(name), args(args), body(body) {}
 
     const std::shared_ptr<Ident> name;
     const std::shared_ptr<List<Ident>> args;
-    const std::shared_ptr<List<Stmt>> body;
+    const std::shared_ptr<List<Node>> body;
 
     ~FnDef() override {}
 };
 
 
-struct If : public Stmt {
-    If(const std::shared_ptr<Expr> cnd,
-       const std::shared_ptr<List<Stmt>> body)
+struct If : public Node {
+    If(const std::shared_ptr<Node> cnd,
+       const std::shared_ptr<List<Node>> body)
             : cnd(cnd), body(body) {}
 
-    const std::shared_ptr<Expr> cnd;
-    const std::shared_ptr<List<Stmt>> body;
+    const std::shared_ptr<Node> cnd;
+    const std::shared_ptr<List<Node>> body;
 
     ~If() override {}
 };

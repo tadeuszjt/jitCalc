@@ -50,29 +50,29 @@ expr
     | FLOATING            { $$ = $1; }
     | '(' expr ')'        { $$ = $2; }
     | ident               { $$ = $1; }
-    | ident '(' exprs ')' { $$ = make_shared<Call>(cast<Ident>($1).get()->ident, cast<List<Expr>>($3)); }
-    | '-' expr            { $$ = make_shared<Prefix>(Minus, cast<Expr>($2)); }
-    | expr '+' expr       { $$ = make_shared<Infix>(cast<Expr>($1), Plus, cast<Expr>($3)); }
-    | expr '-' expr       { $$ = make_shared<Infix>(cast<Expr>($1), Minus, cast<Expr>($3)); }
-    | expr '*' expr       { $$ = make_shared<Infix>(cast<Expr>($1), Times, cast<Expr>($3)); }
-    | expr '/' expr       { $$ = make_shared<Infix>(cast<Expr>($1), Divide, cast<Expr>($3)); }
-    | expr '<' expr       { $$ = make_shared<Infix>(cast<Expr>($1), LT, cast<Expr>($3)); }
-    | expr '>' expr       { $$ = make_shared<Infix>(cast<Expr>($1), GT, cast<Expr>($3)); }
-    | expr EqEq expr      { $$ = make_shared<Infix>(cast<Expr>($1), EqEq, cast<Expr>($3)); };
+    | ident '(' exprs ')' { $$ = make_shared<Call>(cast<Ident>($1).get()->ident, cast<List<Node>>($3)); }
+    | '-' expr            { $$ = make_shared<Prefix>(Minus, ($2)); }
+    | expr '+' expr       { $$ = make_shared<Infix>($1, Plus, $3); }
+    | expr '-' expr       { $$ = make_shared<Infix>($1, Minus, $3); }
+    | expr '*' expr       { $$ = make_shared<Infix>($1, Times, $3); }
+    | expr '/' expr       { $$ = make_shared<Infix>($1, Divide, $3); }
+    | expr '<' expr       { $$ = make_shared<Infix>($1, LT, $3); }
+    | expr '>' expr       { $$ = make_shared<Infix>($1, GT, $3); }
+    | expr EqEq expr      { $$ = make_shared<Infix>($1, EqEq, $3); };
 
 
 line
-    : Return expr { $$ = make_shared<Return>(cast<Expr>($2)); };
+    : Return expr { $$ = make_shared<Return>(($2)); };
 
 block
-    : fn ident '(' idents ')' INDENT stmts1 DEDENT { $$ = make_shared<FnDef>(cast<Ident>($2), cast<List<Ident>>($4), cast<List<Stmt>>($7)); }
-    | If expr INDENT stmts1 DEDENT                 { $$ = make_shared<If>(cast<Expr>($2), cast<List<Stmt>>($4)); };
+    : fn ident '(' idents ')' INDENT stmts1 DEDENT { $$ = make_shared<FnDef>(cast<Ident>($2), cast<List<Ident>>($4), cast<List<Node>>($7)); }
+    | If expr INDENT stmts1 DEDENT                 { $$ = make_shared<If>(($2), cast<List<Node>>($4)); };
 
 stmts1
-    : line NEWLINE        { $$ = make_shared<List<Stmt>>(cast<Stmt>($1)); }
-    | block               { $$ = make_shared<List<Stmt>>(cast<Stmt>($1)); }
-    | line NEWLINE stmts1 { cast<List<Stmt>>($3)->cons(cast<Stmt>($1)); $$ = $3; }
-    | block        stmts1 { cast<List<Stmt>>($2)->cons(cast<Stmt>($1)); $$ = $2; };
+    : line NEWLINE        { $$ = make_shared<List<Node>>($1); }
+    | block               { $$ = make_shared<List<Node>>($1); }
+    | line NEWLINE stmts1 { cast<List<Node>>($3)->cons($1); $$ = $3; }
+    | block        stmts1 { cast<List<Node>>($2)->cons($1); $$ = $2; };
 
 
 idents
@@ -87,8 +87,8 @@ exprs
     : exprs1 { $$ = $1; }
     |        { $$ = make_shared<List<Ident>>(); };
 exprs1
-    : expr            { $$ = make_shared<List<Expr>>(cast<Expr>($1)); }
-    | expr ',' exprs1 { cast<List<Expr>>($3)->cons(cast<Expr>($1)); $$ = $3; };
+    : expr            { $$ = make_shared<List<Node>>($1); }
+    | expr ',' exprs1 { cast<List<Node>>($3)->cons($1); $$ = $3; };
     
 %%
 

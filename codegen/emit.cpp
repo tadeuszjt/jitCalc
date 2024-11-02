@@ -19,7 +19,7 @@ void Emit::emitFuncExtern(const std::string &name, size_t numArgs) {
 }
 
 
-void Emit::emitStmt(const ast::Stmt &stmt) {
+void Emit::emitStmt(const ast::Node &stmt) {
     if (auto *fnDef = dynamic_cast<const ast::FnDef*>(&stmt)) {
         emitFuncDef(*fnDef);
         return;
@@ -40,7 +40,7 @@ void Emit::emitStmt(const ast::Stmt &stmt) {
 
         builder.setCurrentBlock(True);
         symTab.pushScope();
-        for (std::shared_ptr<ast::Stmt> &stmtPtr : (*if_->body).list) {
+        for (std::shared_ptr<ast::Node> &stmtPtr : (*if_->body).list) {
             emitStmt(*stmtPtr);
         }
         symTab.popScope();
@@ -68,7 +68,7 @@ void Emit::emitFuncDef(const ast::FnDef& fnDef) {
                       SymbolTable::ObjFloat{builder.getCurrentFuncArg(i)});
     }
 
-    for (std::shared_ptr<ast::Stmt> &stmtPtr : (*fnDef.body).list) {
+    for (std::shared_ptr<ast::Node> &stmtPtr : (*fnDef.body).list) {
         emitStmt(*stmtPtr);
     }
 
@@ -99,7 +99,7 @@ void Emit::emitReturnNoBlock(Value *value) {
     builder.ir().CreateRet(value);
 }
 
-Value* Emit::emitExpression(const ast::Expr &expr) {
+Value* Emit::emitExpression(const ast::Node &expr) {
     if (auto *integer = dynamic_cast<const ast::Integer*>(&expr)) {
         return emitInt32(integer->integer);
     }

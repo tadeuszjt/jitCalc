@@ -62,13 +62,24 @@ int main(int argc, char **argv) {
         auto result = parse(input);
         auto *presult = result.get();
 
-        if (auto *expr = dynamic_cast<ast::Expr*>(presult)) {
+        if (auto *fnDef = dynamic_cast<ast::FnDef*>(presult)) {
+            auto lock = context.getLock();
+
+            Emit emit(*context.getContext(), "jitCalc_child");
+            emit.setSymbolTable(symTab);
+            emit.emitFuncDef(*fnDef);
+            emit.mod().optimiseModule();
+            emit.mod().printModule();
+            symTab = emit.getSymbolTable();
+
+            cantFail(jit->addIRModule(dyLib, orc::ThreadSafeModule(emit.mod().moveModule(), context)));
+        } else {
             auto lock = context.getLock();
 
             Emit emit(*context.getContext(), "jitCalc_child");
             emit.getSymbolTable() = symTab;
             emit.startFunction("func");
-            auto *v = emit.emitExpression(*expr);
+            auto *v = emit.emitExpression(*presult);
             emit.emitPrint(v);
             emit.emitReturnNoBlock(emit.emitInt32(0));
             emit.mod().optimiseModule();
@@ -80,19 +91,8 @@ int main(int argc, char **argv) {
             auto funcPtr = symbol.toPtr<void(*)()>();
             funcPtr();
             cantFail(tracker->remove());
-
-        } else if (auto *fnDef = dynamic_cast<ast::FnDef*>(presult)) {
-            auto lock = context.getLock();
-
-            Emit emit(*context.getContext(), "jitCalc_child");
-            emit.setSymbolTable(symTab);
-            emit.emitFuncDef(*fnDef);
-            emit.mod().optimiseModule();
-            emit.mod().printModule();
-            symTab = emit.getSymbolTable();
-
-            cantFail(jit->addIRModule(dyLib, orc::ThreadSafeModule(emit.mod().moveModule(), context)));
         }
+
     }
 
 

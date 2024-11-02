@@ -12,10 +12,10 @@ public:
 
     void   emitPrint(llvm::Value *value);
 
-    void emitStmt(const ast::Stmt &);
+    void emitStmt(const ast::Node &);
     void emitFuncDef(const ast::FnDef &);
 
-    llvm::Value* emitExpression(const ast::Expr &);
+    llvm::Value* emitExpression(const ast::Node &);
     llvm::Value* emitInfix(const ast::Infix &);
     llvm::Value* emitPrefix(const ast::Prefix &);
 
