@@ -189,7 +189,7 @@ void Emit::emitPrint(Value *value) {
     std::vector<Value*> printfArgs;
 
     if (value->getType() == builder.ir().getInt32Ty()) {
-        Value *format = builder.ir().CreateGlobalStringPtr("%d\n");
+        Value *format = builder.ir().CreateGlobalString("%d\n");
         printfArgs = {format, value};
     } else {
         assert(false);

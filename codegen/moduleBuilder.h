@@ -4,6 +4,7 @@
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/LLVMContext.h>
+#include <llvm/IR/Module.h>
 
 class ModuleBuilder {
 public:
@@ -20,6 +21,7 @@ public:
 
 
     void printModule();
+    void optimiseModule();
 
     llvm::Type *getInt32Ty() { return irBuilder.getInt32Ty(); }
     llvm::Type *getFloatTy() { return irBuilder.getFloatTy(); }

@@ -71,6 +71,7 @@ int main(int argc, char **argv) {
             auto *v = emit.emitExpression(*expr);
             emit.emitPrint(v);
             emit.emitReturnNoBlock(emit.emitInt32(0));
+            emit.mod().optimiseModule();
             emit.mod().printModule();
 
             auto tracker = dyLib.createResourceTracker();
@@ -86,6 +87,7 @@ int main(int argc, char **argv) {
             Emit emit(*context.getContext(), "jitCalc_child");
             emit.setSymbolTable(symTab);
             emit.emitFuncDef(*fnDef);
+            emit.mod().optimiseModule();
             emit.mod().printModule();
             symTab = emit.getSymbolTable();
 

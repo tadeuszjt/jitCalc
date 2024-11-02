@@ -2,6 +2,8 @@
 #include <cmath>
 #include <iterator>
 
+#include <llvm/Passes/PassBuilder.h>
+
 using namespace llvm;
 
 ModuleBuilder::ModuleBuilder(LLVMContext &context, const std::string &name)
@@ -15,6 +17,24 @@ ModuleBuilder::ModuleBuilder(LLVMContext &context, const std::string &name)
             Function::ExternalLinkage,
             "printf",
             irModule.get());
+}
+
+void ModuleBuilder::optimiseModule() {
+    LoopAnalysisManager LAM;
+    FunctionAnalysisManager FAM;
+    CGSCCAnalysisManager CGAM;
+    ModuleAnalysisManager MAM;
+
+    PassBuilder PB;
+
+    PB.registerModuleAnalyses(MAM);
+    PB.registerCGSCCAnalyses(CGAM);
+    PB.registerFunctionAnalyses(FAM);
+    PB.registerLoopAnalyses(LAM);
+    PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
+
+    ModulePassManager MPM = PB.buildPerModuleDefaultPipeline(OptimizationLevel::O2);
+    MPM.run(*irModule, MAM);
 }
 
 Value* ModuleBuilder::createCall(const std::string &name, const std::vector<Value*> &args) {
