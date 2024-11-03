@@ -11,6 +11,7 @@
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
 #include <llvm/ExecutionEngine/Orc/ThreadSafeModule.h>
 #include <llvm/Support/TargetSelect.h>
+#include <llvm/Support/Casting.h>
 
 #include "lexer.h"
 #include "ast.h"
@@ -59,10 +60,9 @@ int main(int argc, char **argv) {
             break;
         }
 
-        auto result = parse(input);
-        auto *presult = result.get();
+        auto *result = parse(input);
 
-        if (auto *fnDef = dynamic_cast<ast::FnDef*>(presult)) {
+        if (auto *fnDef = llvm::dyn_cast<ast::FnDef>(result)) {
             auto lock = context.getLock();
 
             Emit emit(*context.getContext(), "jitCalc_child");
@@ -79,7 +79,7 @@ int main(int argc, char **argv) {
             Emit emit(*context.getContext(), "jitCalc_child");
             emit.getSymbolTable() = symTab;
             emit.startFunction("func");
-            auto *v = emit.emitExpression(*presult);
+            auto *v = emit.emitExpression(*result);
             emit.emitPrint(v);
             emit.emitReturnNoBlock(emit.emitInt32(0));
             emit.mod().optimiseModule();

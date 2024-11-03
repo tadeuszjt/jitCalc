@@ -8,7 +8,7 @@
 static std::vector<Token> tokens;
 static int tokenIndex;
 
-extern std::shared_ptr<ast::Node> bisonProgramResult;
+extern ast::Node *bisonProgramResult;
 
 int yylex(yy::parser::semantic_type *un) {
     if (tokenIndex >= tokens.size()) {
@@ -18,12 +18,12 @@ int yylex(yy::parser::semantic_type *un) {
     auto token = tokens[tokenIndex++];
 
     if (std::holds_alternative<TokenInt>(token)) {
-        *un = std::make_shared<ast::Integer>(std::get<TokenInt>(token));
+        *un =  new ast::Integer(std::get<TokenInt>(token));
         return yy::parser::token::INTEGER;
     }
 
     if (std::holds_alternative<TokenFloat>(token)) {
-        *un = std::make_shared<ast::Floating>(std::get<TokenFloat>(token));
+        *un = new ast::Floating(std::get<TokenFloat>(token));
         return yy::parser::token::FLOATING;
     }
 
@@ -44,7 +44,7 @@ int yylex(yy::parser::semantic_type *un) {
     }
 
     if (std::holds_alternative<TokenIdent>(token)) {
-        *un = std::make_shared<ast::Ident>(std::get<TokenIdent>(token).str);
+        *un = new ast::Ident(std::get<TokenIdent>(token).str);
         return yy::parser::token::ident;
     }
 
@@ -78,7 +78,7 @@ int yylex(yy::parser::semantic_type *un) {
     assert(false);
 }
 
-std::shared_ptr<ast::Node> parse(std::string& text) {
+ast::Node *parse(std::string& text) {
     tokens = lexTokens(text);
     tokenIndex = 0;
 
@@ -86,9 +86,7 @@ std::shared_ptr<ast::Node> parse(std::string& text) {
     parser.parse();
 
     if (bisonProgramResult) {
-        std::shared_ptr<ast::Node> expr = bisonProgramResult;
-        bisonProgramResult.reset();
-        return expr;
+        return bisonProgramResult;
     } else {
         assert(false);
     }

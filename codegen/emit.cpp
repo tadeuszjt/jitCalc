@@ -20,16 +20,16 @@ void Emit::emitFuncExtern(const std::string &name, size_t numArgs) {
 
 
 void Emit::emitStmt(const ast::Node &stmt) {
-    if (auto *fnDef = dynamic_cast<const ast::FnDef*>(&stmt)) {
+    if (auto *fnDef = dyn_cast<ast::FnDef>(&stmt)) {
         emitFuncDef(*fnDef);
         return;
     }
-    if (auto *ret = dynamic_cast<const ast::Return*>(&stmt)) {
+    if (auto *ret = dyn_cast<ast::Return>(&stmt)) {
         auto *e = emitExpression(*ret->expr);
         emitReturn(e);
         return;
     }
-    if (auto *if_ = dynamic_cast<const ast::If*>(&stmt)) {
+    if (auto *if_ = dyn_cast<ast::If>(&stmt)) {
         auto *cnd = emitExpression(*if_->cnd);
         auto *cmp = builder.ir().CreateICmpEQ(cnd, emitInt32(0));
 
@@ -40,7 +40,7 @@ void Emit::emitStmt(const ast::Node &stmt) {
 
         builder.setCurrentBlock(True);
         symTab.pushScope();
-        for (std::shared_ptr<ast::Node> &stmtPtr : (*if_->body).list) {
+        for (ast::Node *stmtPtr : (*if_->body).list) {
             emitStmt(*stmtPtr);
         }
         symTab.popScope();
@@ -68,7 +68,7 @@ void Emit::emitFuncDef(const ast::FnDef& fnDef) {
                       SymbolTable::ObjFloat{builder.getCurrentFuncArg(i)});
     }
 
-    for (std::shared_ptr<ast::Node> &stmtPtr : (*fnDef.body).list) {
+    for (ast::Node *stmtPtr : (*fnDef.body).list) {
         emitStmt(*stmtPtr);
     }
 
@@ -100,19 +100,19 @@ void Emit::emitReturnNoBlock(Value *value) {
 }
 
 Value* Emit::emitExpression(const ast::Node &expr) {
-    if (auto *integer = dynamic_cast<const ast::Integer*>(&expr)) {
+    if (auto *integer = dyn_cast<ast::Integer>(&expr)) {
         return emitInt32(integer->integer);
     }
-    if (auto *floating = dynamic_cast<const ast::Floating*>(&expr)) {
+    if (auto *floating = dyn_cast<ast::Floating>(&expr)) {
         assert(false);
     }
-    if (auto *infix = dynamic_cast<const ast::Infix*>(&expr)) {
+    if (auto *infix = dyn_cast<ast::Infix>(&expr)) {
         return emitInfix(*infix);
     }
-    if (auto *prefix = dynamic_cast<const ast::Prefix*>(&expr)) {
+    if (auto *prefix = dyn_cast<ast::Prefix>(&expr)) {
         return emitPrefix(*prefix);
     }
-    if (auto *ident = dynamic_cast<const ast::Ident*>(&expr)) {
+    if (auto *ident = dyn_cast<ast::Ident>(&expr)) {
         auto object = symTab.look(ident->ident);
         if (std::holds_alternative<SymbolTable::ObjFloat>(object)) {
             return std::get<SymbolTable::ObjFloat>(object).value;
@@ -120,7 +120,7 @@ Value* Emit::emitExpression(const ast::Node &expr) {
 
         assert(false);
     }
-    if (auto *call = dynamic_cast<const ast::Call*>(&expr)) {
+    if (auto *call = dyn_cast<ast::Call>(&expr)) {
         auto object = symTab.look(call->name);
         if (std::holds_alternative<SymbolTable::ObjFunc>(object)) {
             size_t num_args = std::get<SymbolTable::ObjFunc>(object).numArgs;

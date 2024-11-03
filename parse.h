@@ -5,4 +5,4 @@
 #include <memory>
 
 // provides a simple interface for the bison parser and custom lexer.
-std::shared_ptr<ast::Node> parse(std::string& text);
+ast::Node* parse(std::string& text);

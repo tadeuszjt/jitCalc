@@ -19,8 +19,16 @@ enum Operator {
 };
 
 
-struct Node {
-    virtual ~Node() { }
+class Node {
+public:
+    enum NodeKind { NodeList, NodeReturn, NodeIdent, NodeInteger, NodeFloating, NodeInfix,
+        NodePrefix, NodeCall, NodeFnDef, NodeIf };
+
+    NodeKind getKind() const { return kind; }
+    Node(NodeKind kind) : kind(kind) {}
+
+private:
+    NodeKind kind;
 };
 
 
@@ -28,98 +36,97 @@ struct Node {
 template <typename T>
 class List : public Node {
 public:
-    List() {}
-    ~List() override {}
+    List() : Node(NodeList) {}
+    List(T* item) : Node(NodeList) { list.push_back(item); }
 
-    List(std::shared_ptr<T> item) { list.push_back(item); }
-    void cons(std::shared_ptr<T> item) { list.insert(list.begin(), item); }
+    void cons(T *item) { list.insert(list.begin(), item); }
     size_t size() { return list.size(); }
 
-    std::vector<std::shared_ptr<T>> list;
+    static bool classof(const Node *node) { return node->getKind() == NodeList; }
+
+    std::vector<T*> list;
 };
 
 
 struct Return : public Node {
-    virtual ~Return() override {}
-    Return(const std::shared_ptr<Node> expr) : expr(expr) {}
-    const std::shared_ptr<Node> expr;
+    Return(Node* expr) : Node(NodeReturn), expr(expr) {}
+    static bool classof(const Node *node) { return node->getKind() == NodeReturn; }
+    Node* expr;
 };
 
 
 struct Ident : public Node {
-    Ident(const std::string &ident) : ident(ident) {}
-    ~Ident() override {}
-    const std::string ident;
+    Ident(const std::string &ident) : Node(NodeIdent), ident(ident) {}
+    static bool classof(const Node *node) { return node->getKind() == NodeIdent; }
+    std::string ident;
 };
 
 
 struct Integer : public Node {
-    Integer(int integer) : integer(integer) {}
-    const int integer;
-    ~Integer() override {}
+    Integer(int integer) : Node(NodeInteger), integer(integer) {}
+    int integer;
+    static bool classof(const Node *node) { return node->getKind() == NodeInteger; }
 };
 
 struct Floating : public Node {
-    Floating(double floating) : floating(floating) {}
-    const double floating;
-    ~Floating() override {}
+    Floating(double floating) : Node(NodeFloating), floating(floating) {}
+    double floating;
+    static bool classof(const Node *node) { return node->getKind() == NodeFloating; }
 };
 
 struct Infix : public Node {
-    const std::shared_ptr<Node> left, right;
+    Node *left, *right;
     Operator op;
 
-    Infix(const std::shared_ptr<Node> left, Operator op, const std::shared_ptr<Node> right) :
+    Infix(Node *left, Operator op, Node *right) :
+        Node(NodeInfix),
         left(left),
         right(right),
         op(op)
     {}
-    ~Infix() override {}
+    static bool classof(const Node *node) { return node->getKind() == NodeInfix; }
 };
 
 struct Prefix : public Node {
-    std::shared_ptr<Node> right;
+    Node *right;
     Operator op;
 
-    Prefix(Operator op, std::shared_ptr<Node> right) : right(right), op(op) {}
-    ~Prefix() override {}
+    Prefix(Operator op, Node* right) : Node(NodePrefix), right(right), op(op) {}
+    static bool classof(const Node *node) { return node->getKind() == NodePrefix; }
 };
 
 struct Call : public Node {
-    Call(const std::string& name, const std::shared_ptr<List<Node>> args)
-        : name(name), args(args) {}
-    ~Call() override {}
+    Call(std::string& name, List<Node> *args)
+        : Node(NodeCall), name(name), args(args) {}
+    static bool classof(const Node *node) { return node->getKind() == NodeCall; }
 
-    std::string                     name; 
-    const std::shared_ptr<List<Node>> args;
+    std::string      name; 
+    List<Node> *args;
 };
 
 struct FnDef : public Node {
-    FnDef(const std::shared_ptr<Ident> name,
-          const std::shared_ptr<List<Ident>> args,
-          const std::shared_ptr<List<Node>> body)
-            : name(name), args(args), body(body) {}
+    FnDef(Ident * name,
+          List<Ident> *args,
+          List<Node> *body)
+            : Node(NodeFnDef), name(name), args(args), body(body) {}
 
-    const std::shared_ptr<Ident> name;
-    const std::shared_ptr<List<Ident>> args;
-    const std::shared_ptr<List<Node>> body;
+    Ident *name;
+    List<Ident> *args;
+    List<Node> *body;
 
-    ~FnDef() override {}
+    static bool classof(const Node *node) { return node->getKind() == NodeFnDef; }
 };
 
 
 struct If : public Node {
-    If(const std::shared_ptr<Node> cnd,
-       const std::shared_ptr<List<Node>> body)
-            : cnd(cnd), body(body) {}
+    If(Node *cnd,
+       List<Node> *body)
+            : Node(NodeIf), cnd(cnd), body(body) {}
 
-    const std::shared_ptr<Node> cnd;
-    const std::shared_ptr<List<Node>> body;
+    Node *cnd;
+    List<Node> *body;
 
-    ~If() override {}
+    static bool classof(const Node *node) { return node->getKind() == NodeIf; }
 };
-
-
-
 }
 
