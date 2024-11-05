@@ -29,23 +29,28 @@ private:
     TokenKind kind;
 };
 
+
 class Lexer {
 public:
-    Lexer(llvm::StringRef strRef) : strRef(strRef), indentStack({""}), index(strRef.begin()), begin(strRef.begin()) {}
+    Lexer(llvm::StringRef str) : strRef(strRef), indentStack({""}) {
+        strRef = str;
+        index = strRef.begin();
+        dedentCount = 0;
+    }
     Token nextToken();
 
 private:
-    size_t getOffset(llvm::StringRef::iterator it) { return std::distance(begin, it); }
+    size_t getOffset(llvm::StringRef::iterator it) { return std::distance(strRef.begin(), it); }
 
-    std::optional<Token> lexNewline();
-    std::optional<Token> lexInteger();
-    std::optional<Token> lexFloating();
-    std::optional<Token> lexIdent();
-    std::optional<Token> lexKeyword();
-    std::optional<Token> lexSymbol();
+    std::optional<Token> const lexNewline();
+    std::optional<Token> const lexInteger();
+    std::optional<Token> const lexFloating();
+    std::optional<Token> const lexIdent();
+    std::optional<Token> const lexKeyword();
+    std::optional<Token> const lexSymbol();
 
+    int dedentCount;
     llvm::StringRef strRef;
-    llvm::StringRef::iterator begin;
     llvm::StringRef::iterator index;
     std::vector<std::string> indentStack;
 };
