@@ -3,192 +3,140 @@
 #include <cassert>
 #include <algorithm>
 
-// this class is used to store stack of indent spaces during lexing.
-class Lexer {
-public:
-    Lexer(std::string &str) : start(str.begin()), end(str.end()) {
-        indentStack.push_back("");
-    }
+std::vector<Token> Lexer::lexTokens(llvm::StringRef str) {
+    indentStack = {""};
+    start = str.begin();
+    std::vector<Token> tokens;
 
-    std::vector<Token> lexTokens() {
-        std::vector<Token> tokens;
-
-        for (;;) {
-            // skip space
-            for (; start != end && (*start == '\t' || *start == ' '); start++) {
-            }
-
-            auto newline = lexNewline(start);
-            if (newline.size() > 0) {
-                for (TokenSpace space : newline) {
-                    tokens.push_back(space);
-                }
-            }
-
-            auto result = lexAny();
-            if (!result.has_value()) {
-                break;
-            }
-
-            tokens.push_back(result.value().token);
-            start = result.value().rest;
+    for (;;) {
+        // skip space
+        for (; (*start == '\t' || *start == ' '); start++) {
         }
 
-        if (start == end) {
-            return tokens;
+        if (*start == '\0') {
+            break;
+        } else if (auto indent = lexNewline(); indent.size() > 0) {
+            for (auto nl : indent) {
+                tokens.push_back(nl);
+            }
+        } else if (auto token = lexFloating(); token.has_value()) {
+            tokens.push_back(token.value());
+        } else if (auto token = lexInteger(); token.has_value()) {
+            tokens.push_back(token.value());
+        } else if (auto token = lexSymbol(); token.has_value()) {
+            tokens.push_back(token.value());
+        } else if (auto token = lexKeyword(); token.has_value()) {
+            tokens.push_back(token.value());
+        } else if (auto token = lexIdent(); token.has_value()) {
+            tokens.push_back(token.value());
         } else {
-            start = end;
-            return {};
+            assert(false);
         }
     }
 
-private:
-    struct LexSuccess {
-        std::string::iterator rest;
-        Token token;
-        LexSuccess(std::string::iterator it, Token tok) : rest(it), token(tok) {};
-    };
-    using LexResult = std::optional<LexSuccess>;
+    return tokens;
+}
 
-    LexResult lexAny() {
-        auto floating = lexFloating();
-        if (floating.has_value()) {
-            return floating;
+std::vector<TokenSpace> Lexer::lexNewline() {
+    if (*start != '\n') {
+        return {};
+    }
+    start++;
+    llvm::StringRef::iterator spacesStart = start;
+
+    for (; (*start == '\t' || *start == ' '); start++) {
+    }
+
+    std::string spaces = std::string(spacesStart, start);
+
+    if (spaces == indentStack.back()) {
+        return {SPACE_NEWLINE};
+    } else if (spaces.substr(0, indentStack.back().size()) == indentStack.back()) {
+        indentStack.push_back(spaces);
+        return {SPACE_INDENT};
+    } else {
+        std::vector<TokenSpace> tokens = {SPACE_NEWLINE};
+        for (; spaces != indentStack.back(); indentStack.pop_back()) {
+            assert(indentStack.size() > 0);
+            tokens.push_back(SPACE_DEDENT);
         }
 
-        auto integer = lexInteger();
-        if (integer.has_value()) {
-            return integer;
-        }
+        assert(spaces == indentStack.back());
+        return tokens;
+    }
+}
 
-        auto symbol = lexSymbol();
-        if (symbol.has_value()) {
-            return symbol;
-        }
+std::optional<Token> Lexer::lexInteger() {
+    llvm::StringRef::iterator prev = start;
+    for (; isdigit(*start); start++) {
+    }
+    if (prev != start) {
+        return TokenInt{std::stoi(std::string(prev, start))};
+    }
+    return std::nullopt;
+}
 
-        auto keyword = lexKeyword();
-        if (keyword.has_value()) {
-            return keyword;
-        }
 
-        auto ident = lexIdent();
-        if (ident.has_value()) {
-            return ident;
-        }
+std::optional<Token> Lexer::lexFloating() {
+    llvm::StringRef::iterator it = start;
+    llvm::StringRef::iterator prev = start;
 
+    for (; isdigit(*it); it++) {
+    }
+    if (it == start) {
         return std::nullopt;
     }
-
-    // lexNewline implements whitespace-specific syntax, it will return either:
-    //  SPACE_INDENT                    -- indent level has increased by 1
-    //  SPACE_NEWLINE                   -- indent level stays the same
-    //  {SPACE_DEDENT, SPACE_DEDENT...} -- dedent level has decreased by number of tokens
-    std::vector<TokenSpace> lexNewline(std::string::iterator &out) {
-        std::string::iterator it = start;
-        if (it == end || *it != '\n') {
-            return {};
-        }
-        it++;
-        std::string::iterator spacesStart = it;
-
-        for (; it != end && (*it == '\t' || *it == ' '); it++) {
-        }
-
-        out = it;
-        std::string spaces = std::string(spacesStart, it);
-
-        if (spaces == indentStack.back()) {
-            return {SPACE_NEWLINE};
-        } else if (spaces.substr(0, indentStack.back().size()) == indentStack.back()) {
-            indentStack.push_back(spaces);
-            return {SPACE_INDENT};
-        } else {
-            std::vector<TokenSpace> tokens = {SPACE_NEWLINE};
-            for (; spaces != indentStack.back(); indentStack.pop_back()) {
-                assert(indentStack.size() > 0);
-                tokens.push_back(SPACE_DEDENT);
-            }
-
-            assert(spaces == indentStack.back());
-            return tokens;
-        }
-    }
-
-    LexResult lexKeyword() {
-        auto result = lexIdent();
-        if (!result.has_value()) {
-            return std::nullopt;
-        }
-
-        auto ident = std::get<TokenIdent>(result.value().token);
-
-        for (const std::string &keyword : keywords) {
-            if (ident.str == keyword) {
-                return LexSuccess(result.value().rest, TokenKeyword(ident.str));
-            }
-        }
+    if (*it++ != '.') {
         return std::nullopt;
     }
+    for (; isdigit(*it); it++) {
+    }
+    start = it;
+    return TokenFloat{std::stod(std::string(prev, start))};
+}
 
-    LexResult lexInteger() {
-        std::string::iterator it;
-        for (it = start; it != end && isdigit(*it); it++) {
-        }
-        if (it != start) {
-            return LexSuccess(it, TokenInt{std::stoi(std::string(start, it))});
-        }
+std::optional<Token> Lexer::lexIdent() {
+    llvm::StringRef::iterator prev = start;
+    if (!isalpha(*start)) {
         return std::nullopt;
     }
-
-    LexResult lexFloating() {
-        std::string::iterator it = start;
-        if (it == end || !isdigit(*it)) {
-            return std::nullopt;
-        }
-        for (; it != end && isdigit(*it); it++) {
-        }
-        if (it == end || *it != '.') {
-            return std::nullopt;
-        }
-        it++;
-        for (; it != end && isdigit(*it); it++) {
-        }
-        return LexSuccess(it, TokenFloat{std::stod(std::string(start, it))});
+    for (; isalpha(*start) || isdigit(*start); start++) {
     }
+    return TokenIdent{std::string(prev, start)};
+}
 
-    LexResult lexIdent() {
-        std::string::iterator it = start;
-        if (it != end && isalpha(*it)) {
-            it++;
-        }
-        for (; it != end && (isalpha(*it) || isdigit(*it)); it++) {
-        }
-        if (it != start) {
-            return LexSuccess(it, TokenIdent{std::string(start, it)});
-        }
+std::optional<Token> Lexer::lexKeyword() {
+    llvm::StringRef::iterator it = start;
+    if (!isalpha(*it)) {
         return std::nullopt;
     }
-
-
-    LexResult lexSymbol() {
-        std::string::iterator it = start;
-
-        if (it != end && std::find(doubleSymbols.begin(), doubleSymbols.end(), std::string(it, it + 2)) != doubleSymbols.end()) {
-            it += 2;
-            return LexSuccess(it, TokenSymbol{std::string(it - 2, it)});
-        }
-
-        if (it != end && symbols.find(*it) != std::string::npos) {
-            it++;
-            return LexSuccess(it, TokenSymbol{std::string(it - 1, it)});
-        }
-
-        return std::nullopt;
+    for (; isalpha(*it) || isdigit(*it) || *it == '_' ; it++) {
     }
 
-    std::string::iterator start, end;
-    std::vector<std::string> indentStack;
-};
+    auto str = std::string(start, it);
+    for (const std::string &keyword : keywords) {
+        if (str == keyword) {
+            start = it;
+            return TokenKeyword(str);
+        }
+    }
+    return std::nullopt;
+}
+
+std::optional<Token> Lexer::lexSymbol() {
+    llvm::StringRef::iterator prev = start;
+
+    if (std::find(doubleSymbols.begin(), doubleSymbols.end(), std::string(start, start + 2)) != doubleSymbols.end()) {
+        start += 2;
+        return TokenSymbol{std::string(prev, start)};
+    }
+    if (symbols.find(*start) != std::string::npos) {
+        start++;
+        return TokenSymbol{std::string(prev, start)};
+    }
+
+    return std::nullopt;
+}
 
 
 std::ostream& operator<<(std::ostream& os, const Token& token) {
@@ -211,9 +159,4 @@ std::ostream& operator<<(std::ostream& os, const Token& token) {
         assert(false);
     }
     return os;
-}
-
-std::vector<Token> lexTokens(std::string& str) {
-    Lexer lexer(str);
-    return lexer.lexTokens();
 }

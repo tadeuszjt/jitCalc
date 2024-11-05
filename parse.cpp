@@ -79,7 +79,8 @@ int yylex(yy::parser::semantic_type *un) {
 }
 
 ast::Node *parse(std::string& text) {
-    tokens = lexTokens(text);
+    Lexer lexer;
+    tokens = lexer.lexTokens(text);
     tokenIndex = 0;
 
     yy::parser parser;

@@ -5,6 +5,7 @@
 #include <optional>
 #include <variant>
 #include <vector>
+#include <llvm/ADT/StringRef.h>
 // Implements a custom lexer to turn strings into vectors of tokens.
 
 
@@ -35,5 +36,22 @@ using TokenSymbol = std::string;
 
 using Token = std::variant<TokenInt, TokenFloat, TokenIdent, TokenKeyword, TokenSymbol, TokenSpace>;
 
-std::vector<Token> lexTokens(std::string& str);
 std::ostream& operator<<(std::ostream& os, const Token& token);
+
+
+
+class Lexer {
+public:
+    std::vector<Token> lexTokens(llvm::StringRef str);
+
+private:
+    std::vector<TokenSpace> lexNewline();
+    std::optional<Token> lexInteger();
+    std::optional<Token> lexFloating();
+    std::optional<Token> lexIdent();
+    std::optional<Token> lexKeyword();
+    std::optional<Token> lexSymbol();
+
+    llvm::StringRef::iterator start;
+    std::vector<std::string> indentStack;
+};
