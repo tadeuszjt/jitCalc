@@ -2,10 +2,21 @@
 #include <cctype>
 #include <cassert>
 #include <algorithm>
+#include <memory>
+#include <llvm/Support/MemoryBuffer.h>
+#include <llvm/Support/SourceMgr.h>
 
 std::vector<Token> Lexer::lexTokens(llvm::StringRef str) {
+    std::unique_ptr<llvm::MemoryBuffer> buffer = llvm::MemoryBuffer::getMemBufferCopy(str, "buffer");
+    assert(buffer);
+
+    llvm::SourceMgr sourceMgr;
+    int bufId = sourceMgr.AddNewSourceBuffer(std::move(buffer), llvm::SMLoc());
+
+
     indentStack = {""};
-    start = str.begin();
+    start = sourceMgr.getMemoryBuffer(bufId)->getBuffer().begin();
+    llvm::StringRef::iterator prev = start;
     std::vector<Token> tokens;
 
     for (;;) {
@@ -30,6 +41,12 @@ std::vector<Token> Lexer::lexTokens(llvm::StringRef str) {
         } else if (auto token = lexIdent(); token.has_value()) {
             tokens.push_back(token.value());
         } else {
+            size_t distance = std::distance(prev, start);
+            llvm::SMLoc loc = llvm::SMLoc::getFromPointer(
+                    sourceMgr.getMemoryBuffer(bufId)->getBufferStart() + distance);
+
+            llvm::Twine msg = "invalid token";
+            sourceMgr.PrintMessage(loc, llvm::SourceMgr::DK_Error, msg);
             assert(false);
         }
     }
