@@ -10,48 +10,41 @@
 
 
 const std::vector keywords = {"fn", "if", "else", "return"};
-
 const std::string symbols = "+-*/()><";
 const std::vector<std::string> doubleSymbols = {"=="};
 
-enum TokenSpace {
-    SPACE_NEWLINE,
-    SPACE_INDENT,
-    SPACE_DEDENT
+
+class Token {
+public:
+    enum TokenKind {KindInt, KindFloat, KindKeyword, KindIdent, KindSymbol,
+        KindIndent, KindDedent, KindNewline };
+
+    Token(TokenKind kind, size_t start, size_t end)
+        : kind(kind), start(start), end(end) {}
+    TokenKind getKind() { return kind; }
+    size_t    getStart() { return start; }
+    size_t    getEnd() { return end; }
+private:
+    size_t start, end;
+    TokenKind kind;
 };
-
-struct TokenKeyword {
-    TokenKeyword(const std::string &str) : str(str) {}
-    const std::string str;
-};
-
-struct TokenIdent {
-    TokenIdent(const std::string &str) : str(str) {}
-    const std::string str;
-};
-
-using TokenInt = int;
-using TokenFloat = double;
-using TokenSymbol = std::string;
-
-using Token = std::variant<TokenInt, TokenFloat, TokenIdent, TokenKeyword, TokenSymbol, TokenSpace>;
-
-std::ostream& operator<<(std::ostream& os, const Token& token);
-
-
 
 class Lexer {
 public:
     std::vector<Token> lexTokens(llvm::StringRef str);
 
 private:
-    std::vector<TokenSpace> lexNewline();
+    size_t getOffset(llvm::StringRef::iterator it) { return std::distance(begin, it); }
+
+
+    std::vector<Token> lexNewline();
     std::optional<Token> lexInteger();
     std::optional<Token> lexFloating();
     std::optional<Token> lexIdent();
     std::optional<Token> lexKeyword();
     std::optional<Token> lexSymbol();
 
-    llvm::StringRef::iterator start;
+    llvm::StringRef::iterator begin;
+    llvm::StringRef::iterator index;
     std::vector<std::string> indentStack;
 };

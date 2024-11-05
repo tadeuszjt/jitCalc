@@ -15,16 +15,17 @@ std::vector<Token> Lexer::lexTokens(llvm::StringRef str) {
 
 
     indentStack = {""};
-    start = sourceMgr.getMemoryBuffer(bufId)->getBuffer().begin();
-    llvm::StringRef::iterator prev = start;
+    index = sourceMgr.getMemoryBuffer(bufId)->getBuffer().begin();
+    begin = index;
+    llvm::StringRef::iterator prev = index;
     std::vector<Token> tokens;
 
     for (;;) {
         // skip space
-        for (; (*start == '\t' || *start == ' '); start++) {
+        for (; (*index == '\t' || *index == ' '); index++) {
         }
 
-        if (*start == '\0') {
+        if (*index == '\0') {
             break;
         } else if (auto indent = lexNewline(); indent.size() > 0) {
             for (auto nl : indent) {
@@ -41,7 +42,7 @@ std::vector<Token> Lexer::lexTokens(llvm::StringRef str) {
         } else if (auto token = lexIdent(); token.has_value()) {
             tokens.push_back(token.value());
         } else {
-            size_t distance = std::distance(prev, start);
+            size_t distance = std::distance(prev, index);
             llvm::SMLoc loc = llvm::SMLoc::getFromPointer(
                     sourceMgr.getMemoryBuffer(bufId)->getBufferStart() + distance);
 
@@ -54,28 +55,29 @@ std::vector<Token> Lexer::lexTokens(llvm::StringRef str) {
     return tokens;
 }
 
-std::vector<TokenSpace> Lexer::lexNewline() {
-    if (*start != '\n') {
+std::vector<Token> Lexer::lexNewline() {
+    llvm::StringRef::iterator prev = index;
+    if (*index != '\n') {
         return {};
     }
-    start++;
-    llvm::StringRef::iterator spacesStart = start;
+    index++;
+    llvm::StringRef::iterator spacesStart = index;
 
-    for (; (*start == '\t' || *start == ' '); start++) {
+    for (; (*index == '\t' || *index == ' '); index++) {
     }
 
-    std::string spaces = std::string(spacesStart, start);
+    std::string spaces = std::string(spacesStart, index);
 
     if (spaces == indentStack.back()) {
-        return {SPACE_NEWLINE};
+        return {Token(Token::KindNewline, getOffset(prev), getOffset(index))};
     } else if (spaces.substr(0, indentStack.back().size()) == indentStack.back()) {
         indentStack.push_back(spaces);
-        return {SPACE_INDENT};
+        return {Token(Token::KindIndent, getOffset(prev), getOffset(index))};
     } else {
-        std::vector<TokenSpace> tokens = {SPACE_NEWLINE};
+        std::vector<Token> tokens = {Token(Token::KindNewline, getOffset(prev), getOffset(index))};
         for (; spaces != indentStack.back(); indentStack.pop_back()) {
             assert(indentStack.size() > 0);
-            tokens.push_back(SPACE_DEDENT);
+            tokens.push_back(Token(Token::KindDedent, getOffset(prev), getOffset(index)));
         }
 
         assert(spaces == indentStack.back());
@@ -84,23 +86,22 @@ std::vector<TokenSpace> Lexer::lexNewline() {
 }
 
 std::optional<Token> Lexer::lexInteger() {
-    llvm::StringRef::iterator prev = start;
-    for (; isdigit(*start); start++) {
+    llvm::StringRef::iterator prev = index;
+    for (; isdigit(*index); index++) {
     }
-    if (prev != start) {
-        return TokenInt{std::stoi(std::string(prev, start))};
+    if (prev != index) {
+        return Token(Token::KindInt, getOffset(prev), getOffset(index));
     }
     return std::nullopt;
 }
 
 
 std::optional<Token> Lexer::lexFloating() {
-    llvm::StringRef::iterator it = start;
-    llvm::StringRef::iterator prev = start;
+    llvm::StringRef::iterator it = index;
 
     for (; isdigit(*it); it++) {
     }
-    if (it == start) {
+    if (it == index) {
         return std::nullopt;
     }
     if (*it++ != '.') {
@@ -108,72 +109,51 @@ std::optional<Token> Lexer::lexFloating() {
     }
     for (; isdigit(*it); it++) {
     }
-    start = it;
-    return TokenFloat{std::stod(std::string(prev, start))};
+    llvm::StringRef::iterator start = index;
+    index = it;
+    return Token(Token::KindFloat, getOffset(start), getOffset(index));
 }
 
 std::optional<Token> Lexer::lexIdent() {
-    llvm::StringRef::iterator prev = start;
-    if (!isalpha(*start)) {
+    llvm::StringRef::iterator prev = index;
+    if (!isalpha(*index)) {
         return std::nullopt;
     }
-    for (; isalpha(*start) || isdigit(*start); start++) {
+    for (; isalpha(*index) || isdigit(*index); index++) {
     }
-    return TokenIdent{std::string(prev, start)};
+    return Token(Token::KindIdent, getOffset(prev), getOffset(index));
 }
 
 std::optional<Token> Lexer::lexKeyword() {
-    llvm::StringRef::iterator it = start;
+    llvm::StringRef::iterator prev = index;
+    llvm::StringRef::iterator it = index;
     if (!isalpha(*it)) {
         return std::nullopt;
     }
     for (; isalpha(*it) || isdigit(*it) || *it == '_' ; it++) {
     }
 
-    auto str = std::string(start, it);
+    auto str = std::string(index, it);
     for (const std::string &keyword : keywords) {
         if (str == keyword) {
-            start = it;
-            return TokenKeyword(str);
+            index = it;
+            return Token(Token::KindKeyword, getOffset(prev), getOffset(it));
         }
     }
     return std::nullopt;
 }
 
 std::optional<Token> Lexer::lexSymbol() {
-    llvm::StringRef::iterator prev = start;
+    llvm::StringRef::iterator prev = index;
 
-    if (std::find(doubleSymbols.begin(), doubleSymbols.end(), std::string(start, start + 2)) != doubleSymbols.end()) {
-        start += 2;
-        return TokenSymbol{std::string(prev, start)};
+    if (std::find(doubleSymbols.begin(), doubleSymbols.end(), std::string(index, index + 2)) != doubleSymbols.end()) {
+        index += 2;
+        return Token(Token::KindSymbol, getOffset(prev), getOffset(index));
     }
-    if (symbols.find(*start) != std::string::npos) {
-        start++;
-        return TokenSymbol{std::string(prev, start)};
+    if (symbols.find(*index) != std::string::npos) {
+        index++;
+        return Token(Token::KindSymbol, getOffset(prev), getOffset(index));
     }
 
     return std::nullopt;
-}
-
-
-std::ostream& operator<<(std::ostream& os, const Token& token) {
-    if (std::holds_alternative<TokenInt>(token)) {
-        os << "TokenInt(" << std::get<TokenInt>(token) << ")";
-    } else if (std::holds_alternative<TokenIdent>(token)) {
-        os << "TokenIdent(" << std::get<TokenIdent>(token).str << ")";
-    } else if (std::holds_alternative<TokenKeyword>(token)) {
-        os << "TokenKeyword(" << std::get<TokenKeyword>(token).str << ")";
-    } else if (std::holds_alternative<TokenSymbol>(token)) {
-        os << "TokenSymbol(" << std::get<TokenSymbol>(token) << ")";
-    } else if (std::holds_alternative<TokenSpace>(token)) {
-        switch (std::get<TokenSpace>(token)) {
-        case SPACE_NEWLINE: os << "TokenSpace(NEWLINE)"; break;
-        case SPACE_INDENT: os << "TokenSpace(INDENT)"; break;
-        case SPACE_DEDENT: os << "TokenSpace(DEDENT)"; break;
-        default: assert(false); break;
-        }
-    } else {
-        assert(false);
-    }
-    return os;
 }
