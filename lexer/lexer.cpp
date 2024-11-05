@@ -3,62 +3,68 @@
 #include <cassert>
 #include <algorithm>
 #include <memory>
-#include <llvm/Support/MemoryBuffer.h>
-#include <llvm/Support/SourceMgr.h>
-
-std::vector<Token> Lexer::lexTokens(llvm::StringRef str) {
-    std::unique_ptr<llvm::MemoryBuffer> buffer = llvm::MemoryBuffer::getMemBufferCopy(str, "buffer");
-    assert(buffer);
-
-    llvm::SourceMgr sourceMgr;
-    int bufId = sourceMgr.AddNewSourceBuffer(std::move(buffer), llvm::SMLoc());
 
 
-    indentStack = {""};
-    index = sourceMgr.getMemoryBuffer(bufId)->getBuffer().begin();
-    begin = index;
-    llvm::StringRef::iterator prev = index;
-    std::vector<Token> tokens;
-
-    for (;;) {
-        // skip space
-        for (; (*index == '\t' || *index == ' '); index++) {
-        }
-
-        if (*index == '\0') {
-            break;
-        } else if (auto indent = lexNewline(); indent.size() > 0) {
-            for (auto nl : indent) {
-                tokens.push_back(nl);
-            }
-        } else if (auto token = lexFloating(); token.has_value()) {
-            tokens.push_back(token.value());
-        } else if (auto token = lexInteger(); token.has_value()) {
-            tokens.push_back(token.value());
-        } else if (auto token = lexSymbol(); token.has_value()) {
-            tokens.push_back(token.value());
-        } else if (auto token = lexKeyword(); token.has_value()) {
-            tokens.push_back(token.value());
-        } else if (auto token = lexIdent(); token.has_value()) {
-            tokens.push_back(token.value());
-        } else {
-            size_t distance = std::distance(prev, index);
-            llvm::SMLoc loc = llvm::SMLoc::getFromPointer(
-                    sourceMgr.getMemoryBuffer(bufId)->getBufferStart() + distance);
-
-            llvm::Twine msg = "invalid token";
-            sourceMgr.PrintMessage(loc, llvm::SourceMgr::DK_Error, msg);
-            assert(false);
-        }
+Token Lexer::nextToken() {
+    // skip space
+    for (; (*index == '\t' || *index == ' '); index++) {
     }
 
-    return tokens;
+    if (*index == '\0') {
+        return Token(Token::KindEOF, getOffset(index), getOffset(index));
+    } else if (auto token = lexNewline(); token.has_value()) {
+        //index = begin + token.value().getEnd();
+        return token.value();
+    } else if (auto token = lexFloating(); token.has_value()) {
+        //index = begin + token.value().getEnd();
+        return token.value();
+    } else if (auto token = lexInteger(); token.has_value()) {
+        //index = begin + token.value().getEnd();
+        return token.value();
+    } else if (auto token = lexSymbol(); token.has_value()) {
+        //index = begin + token.value().getEnd();
+        return token.value();
+    } else if (auto token = lexKeyword(); token.has_value()) {
+        //index = begin + token.value().getEnd();
+        return token.value();
+    } else if (auto token = lexIdent(); token.has_value()) {
+        //index = begin + token.value().getEnd();
+        return token.value();
+    } else {
+
+        
+        // invalid token
+        assert(false);
+    }
 }
 
-std::vector<Token> Lexer::lexNewline() {
+//    std::unique_ptr<llvm::MemoryBuffer> buffer = llvm::MemoryBuffer::getMemBufferCopy(strRef, "buffer");
+//    assert(buffer);
+//
+//    llvm::SourceMgr sourceMgr;
+//    int bufId = sourceMgr.AddNewSourceBuffer(std::move(buffer), llvm::SMLoc());
+//
+//
+//    indentStack = {""};
+//    index = sourceMgr.getMemoryBuffer(bufId)->getBuffer().begin();
+//    begin = index;
+//    llvm::StringRef::iterator prev = index;
+//    std::vector<Token> tokens;
+
+//        } else {
+//            size_t distance = std::distance(prev, index);
+//            llvm::SMLoc loc = llvm::SMLoc::getFromPointer(
+//                    sourceMgr.getMemoryBuffer(bufId)->getBufferStart() + distance);
+//
+//            llvm::Twine msg = "invalid token";
+//            sourceMgr.PrintMessage(loc, llvm::SourceMgr::DK_Error, msg);
+//            assert(false);
+//        }
+
+std::optional<Token> Lexer::lexNewline() {
     llvm::StringRef::iterator prev = index;
     if (*index != '\n') {
-        return {};
+        return std::nullopt;
     }
     index++;
     llvm::StringRef::iterator spacesStart = index;
@@ -69,19 +75,20 @@ std::vector<Token> Lexer::lexNewline() {
     std::string spaces = std::string(spacesStart, index);
 
     if (spaces == indentStack.back()) {
-        return {Token(Token::KindNewline, getOffset(prev), getOffset(index))};
+        return Token(Token::KindNewline, getOffset(prev), getOffset(index));
     } else if (spaces.substr(0, indentStack.back().size()) == indentStack.back()) {
         indentStack.push_back(spaces);
-        return {Token(Token::KindIndent, getOffset(prev), getOffset(index))};
+        return Token(Token::KindIndent, getOffset(prev), getOffset(index));
     } else {
-        std::vector<Token> tokens = {Token(Token::KindNewline, getOffset(prev), getOffset(index))};
+        int level = 0;
         for (; spaces != indentStack.back(); indentStack.pop_back()) {
             assert(indentStack.size() > 0);
-            tokens.push_back(Token(Token::KindDedent, getOffset(prev), getOffset(index)));
+            level++;
         }
 
         assert(spaces == indentStack.back());
-        return tokens;
+        Token::TokenKind kind = (Token::TokenKind)(level + (int)Token::KindDedent);
+        return Token(kind, getOffset(prev), getOffset(index));
     }
 }
 
@@ -137,7 +144,7 @@ std::optional<Token> Lexer::lexKeyword() {
     for (const std::string &keyword : keywords) {
         if (str == keyword) {
             index = it;
-            return Token(Token::KindKeyword, getOffset(prev), getOffset(it));
+            return Token(Token::KindKeyword, getOffset(prev), getOffset(index));
         }
     }
     return std::nullopt;

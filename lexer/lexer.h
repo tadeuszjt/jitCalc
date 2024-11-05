@@ -17,7 +17,7 @@ const std::vector<std::string> doubleSymbols = {"=="};
 class Token {
 public:
     enum TokenKind {KindInt, KindFloat, KindKeyword, KindIdent, KindSymbol,
-        KindIndent, KindDedent, KindNewline };
+        KindIndent, KindNewline, KindEOF, KindInvalid, KindDedent/* must be end*/};
 
     Token(TokenKind kind, size_t start, size_t end)
         : kind(kind), start(start), end(end) {}
@@ -31,19 +31,20 @@ private:
 
 class Lexer {
 public:
-    std::vector<Token> lexTokens(llvm::StringRef str);
+    Lexer(llvm::StringRef strRef) : strRef(strRef), indentStack({""}), index(strRef.begin()), begin(strRef.begin()) {}
+    Token nextToken();
 
 private:
     size_t getOffset(llvm::StringRef::iterator it) { return std::distance(begin, it); }
 
-
-    std::vector<Token> lexNewline();
+    std::optional<Token> lexNewline();
     std::optional<Token> lexInteger();
     std::optional<Token> lexFloating();
     std::optional<Token> lexIdent();
     std::optional<Token> lexKeyword();
     std::optional<Token> lexSymbol();
 
+    llvm::StringRef strRef;
     llvm::StringRef::iterator begin;
     llvm::StringRef::iterator index;
     std::vector<std::string> indentStack;

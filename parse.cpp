@@ -8,6 +8,7 @@
 static std::vector<Token> tokens;
 static std::string        source;
 static int tokenIndex;
+static int dedentCount;
 
 extern ast::Node *bisonProgramResult;
 
@@ -16,11 +17,21 @@ std::string tokenString(Token &tok) {
 }
 
 int yylex(yy::parser::semantic_type *un) {
+    if (dedentCount > 0) {
+        dedentCount--;
+        return yy::parser::token::DEDENT;
+    }
+
     if (tokenIndex >= tokens.size()) {
         return yy::parser::token::YYEOF;
     }
 
     auto token = tokens[tokenIndex++];
+
+    if ((int)token.getKind() >= (int)Token::KindDedent) {
+        dedentCount = (int)token.getKind() - (int)Token::KindDedent;
+        return yy::parser::token::NEWLINE;
+    }
 
     switch (token.getKind()) {
     case Token::KindInt: {
@@ -79,9 +90,6 @@ int yylex(yy::parser::semantic_type *un) {
     case Token::KindIndent: {
             return yy::parser::token::INDENT;
         }
-    case Token::KindDedent: {
-            return yy::parser::token::DEDENT;
-        }
     default:
         assert(false);
         break;
@@ -92,10 +100,19 @@ int yylex(yy::parser::semantic_type *un) {
 }
 
 ast::Node *parse(std::string& text) {
-    Lexer lexer;
-    tokens = lexer.lexTokens(text);
+    Lexer lexer(text);
+    for (;;) {
+        auto tok = lexer.nextToken();
+        if (tok.getKind() == Token::KindEOF) {
+            break;
+        }
+
+        tokens.push_back(tok);
+    }
+
     source = text;
     tokenIndex = 0;
+    dedentCount = 0;
 
     yy::parser parser;
     parser.parse();
