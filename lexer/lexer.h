@@ -40,14 +40,14 @@ public:
     Token nextToken();
 
 private:
-    size_t getOffset(llvm::StringRef::iterator it) { return std::distance(strRef.begin(), it); }
+    size_t getOffset(llvm::StringRef::iterator it) const { return std::distance(strRef.begin(), it); }
 
-    std::optional<Token> const lexNewline();
-    std::optional<Token> const lexInteger();
-    std::optional<Token> const lexFloating();
-    std::optional<Token> const lexIdent();
-    std::optional<Token> const lexKeyword();
-    std::optional<Token> const lexSymbol();
+    std::optional<Token> lexNewline();
+    std::optional<Token> lexInteger() const;
+    std::optional<Token> lexFloating() const;
+    std::optional<Token> lexIdent() const;
+    std::optional<Token> lexKeyword() const;
+    std::optional<Token> lexSymbol() const;
 
     int dedentCount;
     llvm::StringRef strRef;

@@ -6,6 +6,8 @@
 #include <memory>
 
 #include <llvm/Support/raw_ostream.h>
+#include <llvm/Support/MemoryBuffer.h>
+#include <llvm/Support/SourceMgr.h>
 
 static std::string            source;
 static std::unique_ptr<Lexer> lexer;
@@ -90,17 +92,39 @@ int yylex(yy::parser::semantic_type *un) {
 }
 
 ast::Node *parse(std::string& text) {
+    bisonProgramResult = nullptr;
     source = text;
+    lexer = std::make_unique<Lexer>(source);
+
+    std::unique_ptr<llvm::MemoryBuffer> buffer = llvm::MemoryBuffer::getMemBufferCopy(source, "buffer");
+    assert(buffer);
+    llvm::SourceMgr sourceMgr;
+    int bufId = sourceMgr.AddNewSourceBuffer(std::move(buffer), llvm::SMLoc());
+
+    int errorCount = 0;
+    for (;;) {
+        auto token = lexer->nextToken();
+        if (token.getKind() == Token::KindEOF) {
+            break;
+        }
+        if (token.getKind() == Token::KindInvalid) {
+            errorCount++;
+            llvm::SMLoc loc = llvm::SMLoc::getFromPointer(
+                sourceMgr.getMemoryBuffer(bufId)->getBufferStart() + token.getStart());
+            llvm::SMRange range(loc, llvm::SMLoc::getFromPointer(
+                sourceMgr.getMemoryBuffer(bufId)->getBufferStart() + token.getEnd()));
+            sourceMgr.PrintMessage(loc, llvm::SourceMgr::DK_Error, "invalid token", range);
+        }
+    }
+    if (errorCount != 0) {
+        return nullptr;
+    }
+
     lexer = std::make_unique<Lexer>(source);
 
     yy::parser parser;
     parser.parse();
-
     lexer.reset();
-
-    if (bisonProgramResult) {
-        return bisonProgramResult;
-    } else {
-        assert(false);
-    }
+    assert(bisonProgramResult);
+    return bisonProgramResult;
 }
