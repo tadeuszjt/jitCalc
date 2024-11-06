@@ -119,12 +119,12 @@ struct FnDef : public Node {
 
 
 struct If : public Node {
-    If(Node *cnd,
-       List<Node> *body)
-            : Node(NodeIf), cnd(cnd), body(body) {}
+    If(Node *cnd, List<Node> *trueBody, List<Node> *falseBody)
+        : Node(NodeIf), cnd(cnd), trueBody(trueBody), falseBody(falseBody) {}
 
     Node *cnd;
-    List<Node> *body;
+    List<Node> *trueBody;
+    List<Node> *falseBody;
 
     static bool classof(const Node *node) { return node->getKind() == NodeIf; }
 };

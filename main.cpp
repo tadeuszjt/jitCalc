@@ -61,6 +61,9 @@ int main(int argc, char **argv) {
         }
 
         auto *result = parse(input);
+        if (result == nullptr) {
+            continue;
+        }
 
         if (auto *fnDef = llvm::dyn_cast<ast::FnDef>(result)) {
             auto lock = context.getLock();

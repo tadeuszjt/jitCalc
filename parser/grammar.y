@@ -66,8 +66,12 @@ line
     : Return expr { $$ = new Return($2); };
 
 block
-    : fn ident '(' idents ')' INDENT stmts1 DEDENT { $$ = new FnDef(cast<Ident>($2), cast<List<Ident>>($4), cast<List<Node>>($7)); }
-    | If expr INDENT stmts1 DEDENT                 { $$ = new If($2, cast<List<Node>>($4)); };
+    : fn ident '(' idents ')' INDENT stmts1 DEDENT
+        { $$ = new FnDef(cast<Ident>($2), cast<List<Ident>>($4), cast<List<Node>>($7)); }
+    | If expr INDENT stmts1 DEDENT
+        { $$ = new If($2, cast<List<Node>>($4), new List<Node>()); }
+    | If expr INDENT stmts1 DEDENT Else INDENT stmts1 DEDENT
+        { $$ = new If($2, cast<List<Node>>($4), cast<List<Node>>($8)); };
 
 stmts1
     : line NEWLINE        { $$ = new List<Node>($1); }

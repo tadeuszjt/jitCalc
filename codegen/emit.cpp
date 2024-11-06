@@ -33,14 +33,23 @@ void Emit::emitStmt(const ast::Node &stmt) {
         auto *cnd = emitExpression(*if_->cnd);
         auto *cmp = builder.ir().CreateICmpEQ(cnd, emitInt32(0));
 
-        BasicBlock *True = builder.appendNewBlock();
+        BasicBlock *trueBlk = builder.appendNewBlock();
+        BasicBlock *falseBlk = builder.appendNewBlock();
         BasicBlock *end = builder.appendNewBlock();
 
-        builder.ir().CreateCondBr(cmp, end, True);
+        builder.ir().CreateCondBr(cmp, falseBlk, trueBlk);
 
-        builder.setCurrentBlock(True);
+        builder.setCurrentBlock(trueBlk);
         symTab.pushScope();
-        for (ast::Node *stmtPtr : (*if_->body).list) {
+        for (ast::Node *stmtPtr : (*if_->trueBody).list) {
+            emitStmt(*stmtPtr);
+        }
+        symTab.popScope();
+        builder.ir().CreateBr(end);
+
+        builder.setCurrentBlock(falseBlk);
+        symTab.pushScope();
+        for (ast::Node *stmtPtr : (*if_->falseBody).list) {
             emitStmt(*stmtPtr);
         }
         symTab.popScope();
