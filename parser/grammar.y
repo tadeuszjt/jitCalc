@@ -1,6 +1,7 @@
 %require "3.2"
 %define parse.error verbose
 %define api.value.type { ast::Node* }
+%locations
 
 %{
 #include "ast.h"
@@ -12,10 +13,11 @@
 #include <optional>
 #include <vector>
 #include <llvm/Support/Casting.h>
+#include <llvm/Support/raw_ostream.h>
 
 
 // this function is called for every token, returns token type (INTEGER, '+', '-'...)
-int yylex(yy::parser::semantic_type *);
+int yylex(yy::parser::semantic_type *, yy::parser::location_type *);
 ast::Node* bisonProgramResult;
 
 template <typename A, typename B>
@@ -61,6 +63,9 @@ expr
     | expr '>' expr       { $$ = new Infix($1, GT, $3); }
     | expr EqEq expr      { $$ = new Infix($1, EqEq, $3); };
 
+    // error ast node can go here
+    //| error               { llvm::errs() << "syntax error in expr\n"; yyclearin; };
+
 
 line
     : Return expr { $$ = new Return($2); };
@@ -99,7 +104,7 @@ exprs1
 
 namespace yy {
 // provide a definition for the virtual error member
-void parser::error(const string& msg) {
+void parser::error(const location_type& loc, const string& msg) {
     cerr << "Bison error: " << msg << endl;
 }
 }

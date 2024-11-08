@@ -18,7 +18,7 @@ std::string tokenString(Token &tok) {
     return source.substr(tok.getStart(), tok.getEnd() - tok.getStart());
 }
 
-int yylex(yy::parser::semantic_type *un) {
+int yylex(yy::parser::semantic_type *un, yy::parser::location_type *yyloc) {
     auto token = lexer->nextToken();
 
     switch (token.getKind()) {
@@ -125,6 +125,5 @@ ast::Node *parse(std::string& text) {
     yy::parser parser;
     parser.parse();
     lexer.reset();
-    assert(bisonProgramResult);
     return bisonProgramResult;
 }
