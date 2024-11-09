@@ -4,154 +4,234 @@
 #include <algorithm>
 #include <memory>
 
+Lexer2::Lexer2() {
+    indentStack = {""};
+    dedentCount = 0;
+}
 
-Token Lexer::nextToken() {
+
+Lexer2::Token2 Lexer2::nextToken(std::istream &istream) {
+    for (;;) {
+        auto nextChar = peek(0, istream);
+        if (nextChar.c == ' ' || nextChar.c == '\t') {
+            get(istream);
+        } else {
+            break;
+        }
+    }
+
     if (dedentCount > 0) {
         dedentCount--;
-        return Token(Token::KindDedent, getOffset(index), getOffset(index));
-    }
-
-    // skip space
-    for (; (*index == '\t' || *index == ' '); index++) {
-    }
-
-    if (*index == '\0') {
-        return Token(Token::KindEOF, getOffset(index), getOffset(index));
-    } else if (auto token = lexNewline(); token.has_value()) {
-
-        if ((int)token.value().getKind() > (int)Token::KindDedent) {
-            dedentCount = (int)token.value().getKind() - (int)Token::KindDedent;
-            index = strRef.begin() + token.value().getEnd();
-            return Token(Token::KindNewline, token.value().getStart(), token.value().getEnd());
-        }
-
-        index = strRef.begin() + token.value().getEnd();
+        Lexer2::Token2 token{.type = Lexer2::Token2::Dedent, .str = "dedent"};
+        return token;
+    } else if (peek(0, istream).c == EOF) {
+        Lexer2::Token2 token{.type = Lexer2::Token2::Eof, .str = "Eof"};
+        return token;
+    } else if (auto token = lexInteger(istream); token.has_value()) {
         return token.value();
-    } else if (auto token = lexFloating(); token.has_value()) {
-        index = strRef.begin() + token.value().getEnd();
+    } else if (auto token = lexIndent(istream); token.has_value()) {
         return token.value();
-    } else if (auto token = lexInteger(); token.has_value()) {
-        index = strRef.begin() + token.value().getEnd();
+    } else if (auto token = lexSymbol(istream); token.has_value()) {
         return token.value();
-    } else if (auto token = lexSymbol(); token.has_value()) {
-        index = strRef.begin() + token.value().getEnd();
+    } else if (auto token = lexKeyword(istream); token.has_value()) {
         return token.value();
-    } else if (auto token = lexKeyword(); token.has_value()) {
-        index = strRef.begin() + token.value().getEnd();
-        return token.value();
-    } else if (auto token = lexIdent(); token.has_value()) {
-        index = strRef.begin() + token.value().getEnd();
+    } else if (auto token = lexIdent(istream); token.has_value()) {
         return token.value();
     } else {
-        assert(*index != '\n'); // can't handle this case
-        llvm::StringRef::iterator prev = index;
+        assert(false);
+    }
+}
 
-        for (; *index != '\0' && *index != '\n' && *index != ' ' && *index != '\t';) {
-            index++;
-            if (lexFloating().has_value()
-                || lexInteger().has_value()
-                || lexSymbol().has_value()
-                || lexKeyword().has_value()
-                || lexIdent().has_value()) {
+
+std::optional<Lexer2::Token2> Lexer2::lexInteger(std::istream &istream) {
+    auto first = peek(0, istream);
+    if (!isdigit(first.c)) {
+        return std::nullopt;
+    }
+    Lexer2::Token2 token{.type = Lexer2::Token2::Integer, .begin = first.pos};
+
+    while (isdigit(peek(0, istream).c)) {
+        token.str.push_back(get(istream).c);
+    }
+
+    token.end = peek(0, istream).pos;
+    return token;
+}
+
+std::optional<Lexer2::Token2> Lexer2::lexIdent(std::istream &istream) {
+    if (!isalpha(peek(0, istream).c)) {
+        return std::nullopt;
+    }
+    Lexer2::Token2 token{.type = Lexer2::Token2::Ident, .begin = peek(0, istream).pos};
+
+    for (;;) {
+        auto ch = peek(0, istream);
+        if (!(isalpha(ch.c) || isdigit(ch.c))) {
+            break;
+        } else {
+            get(istream);
+            token.str.push_back(ch.c);
+        }
+    }
+
+    token.end = peek(0, istream).pos;
+    return token;
+}
+
+std::optional<Lexer2::Token2> Lexer2::lexKeyword(std::istream &istream) {
+    if (!isalpha(peek(0, istream).c)) {
+        return std::nullopt;
+    }
+
+    Lexer2::Token2 token{.type = Lexer2::Token2::Keyword, .begin = peek(0, istream).pos};
+
+    for (int i = 0;; i++) {
+        auto ch = peek(i, istream);
+        if (isalpha(ch.c) || isdigit(ch.c) || ch.c == '_') {
+            token.str.push_back(ch.c);
+        } else {
+            break;
+        }
+    }
+
+    for (auto & keyword : keywords) {
+        if (token.str == keyword) {
+            for (int i = 0; i < token.str.size(); i++) {
+                get(istream);
+            }
+            token.end = peek(0, istream).pos;
+            return token;
+        }
+    }
+
+    return std::nullopt;
+}
+
+std::optional<Lexer2::Token2> Lexer2::lexSymbol(std::istream &istream) {
+    std::string doubleSymbol{peek(0, istream).c, peek(1, istream).c};
+
+    for (auto &str : doubleSymbols) {
+        if (str == doubleSymbol) {
+            Lexer2::Token2 token{
+                .type = Lexer2::Token2::Symbol,
+                .begin = peek(0, istream).pos,
+                .end = peek(2, istream).pos,
+                .str = doubleSymbol
+            };
+
+            get(istream);
+            get(istream);
+            return token;
+        }
+    }
+
+    std::string symbol{peek(0, istream).c};
+
+    for (auto &str : symbols) {
+        if (std::string{str} == symbol) {
+            Lexer2::Token2 token{
+                .type = Lexer2::Token2::Symbol,
+                .begin = peek(0, istream).pos,
+                .end = peek(1, istream).pos,
+                .str = symbol
+            };
+
+            get(istream);
+            return token;
+        }
+    }
+
+    return std::nullopt;
+}
+
+
+std::optional<Lexer2::Token2> Lexer2::lexIndent(std::istream &istream) {
+    if (peek(0, istream).c != '\n') {
+        return std::nullopt;
+    }
+
+    std::string spaces;
+    for (;;) {
+        auto ch = peek(0, istream);
+        if (ch.c == '\n' || ch.c == ' ' || ch.c == '\t') {
+            spaces.push_back(ch.c);
+            get(istream);
+        } else {
+            break; 
+        }
+    }
+
+    std::string indent = spaces.substr(spaces.find_last_of('\n') + 1);
+    Lexer2::Token2 token{
+        .begin = peek(0, istream).pos,
+        .end = peek(spaces.size(), istream).pos,
+        .str = indent
+    };
+
+    if (indent == indentStack.back()) {
+        token.type = Lexer2::Token2::Newline;
+        token.str  = "newline";
+    } else if (indent.substr(0, indentStack.back().size()) == indentStack.back()) {
+        indentStack.push_back(indent);
+        token.type = Lexer2::Token2::Indent;
+        token.str  = "indent"; 
+    } else if (indentStack.back().substr(0, indent.size()) == indent) {
+        for (;;) {
+            if (indentStack.size() == 0) {
+                assert(false);
+            } else if (indentStack.back() == indent) {
                 break;
+            } else {
+                indentStack.pop_back();
+                dedentCount++;
             }
         }
 
-        return Token(Token::KindInvalid, getOffset(prev), getOffset(index));
-    }
-}
-
-std::optional<Token> Lexer::lexNewline() {
-    llvm::StringRef::iterator it = index;
-    if (*it != '\n') {
-        return std::nullopt;
-    }
-    it++;
-    llvm::StringRef::iterator spacesStart = it;
-
-    for (; (*it == '\t' || *it == ' '); it++) {
-    }
-
-    std::string spaces = std::string(spacesStart, it);
-
-    if (spaces == indentStack.back()) {
-        return Token(Token::KindNewline, getOffset(index), getOffset(it));
-    } else if (spaces.substr(0, indentStack.back().size()) == indentStack.back()) {
-        indentStack.push_back(spaces);
-        return Token(Token::KindIndent, getOffset(index), getOffset(it));
+        printf("here: %d\n", dedentCount);
+        token.type = Lexer2::Token2::Newline;
+        token.str  = "newline";
     } else {
-        int level = 0;
-        for (; spaces != indentStack.back(); indentStack.pop_back()) {
-            assert(indentStack.size() > 0);
-            level++;
-        }
+        assert(false);
+    }
 
-        assert(spaces == indentStack.back());
-        Token::TokenKind kind = (Token::TokenKind)(level + (int)Token::KindDedent);
-        return Token(kind, getOffset(index), getOffset(it));
-    }
-}
-
-std::optional<Token> Lexer::lexInteger() const {
-    llvm::StringRef::iterator it = index;
-    for (; isdigit(*it); it++) {
-    }
-    if (it != index) {
-        return Token(Token::KindInt, getOffset(index), getOffset(it));
-    }
-    return std::nullopt;
+    return token;
 }
 
 
-std::optional<Token> Lexer::lexFloating() const {
-    llvm::StringRef::iterator it = index;
+Lexer2::TextChar Lexer2::peek(size_t n, std::istream &istream) {
+    while (n >= charQueue.size()) {
+        auto ch = nextCharFromStream(istream);
+        charQueue.push_front(ch);
+    }
 
-    if (!isdigit(*it)) {
-        return std::nullopt;
-    }
-    for (; isdigit(*it); it++) {
-    }
-    if (*it++ != '.') {
-        return std::nullopt;
-    }
-    for (; isdigit(*it); it++) {
-    }
-    return Token(Token::KindFloat, getOffset(index), getOffset(it));
+    return charQueue[charQueue.size() - 1 - n];
 }
 
-std::optional<Token> Lexer::lexIdent() const {
-    llvm::StringRef::iterator it = index;
-    if (!isalpha(*it)) {
-        return std::nullopt;
+Lexer2::TextChar Lexer2::get(std::istream &istream) {
+    if (charQueue.size() > 0) {
+        auto ch = charQueue.back();
+        charQueue.pop_back();
+        return ch;
     }
-    for (; isalpha(*it) || isdigit(*it); it++) {
-    }
-    return Token(Token::KindIdent, getOffset(index), getOffset(it));
+    return nextCharFromStream(istream);
 }
 
-std::optional<Token> Lexer::lexKeyword() const {
-    llvm::StringRef::iterator it = index;
-    if (!isalpha(*it)) {
-        return std::nullopt;
-    }
-    for (; isalpha(*it) || isdigit(*it) || *it == '_' ; it++) {
+
+Lexer2::TextChar Lexer2::nextCharFromStream(std::istream &istream) {
+    char c = istream.get();
+    TextPos pos = curPos;
+
+    if (c == EOF) {
+        return Lexer2::TextChar(EOF, pos);
     }
 
-    auto str = std::string(index, it);
-    for (const std::string &keyword : keywords) {
-        if (str == keyword) {
-            return Token(Token::KindKeyword, getOffset(index), getOffset(it));
-        }
+    if (c == '\n') {
+        curPos.line++; 
+        curPos.column = 1;
+    } else {
+        curPos.column++;
     }
-    return std::nullopt;
-}
+    curPos.index++;
 
-std::optional<Token> Lexer::lexSymbol() const {
-    if (std::find(doubleSymbols.begin(), doubleSymbols.end(), std::string(index, index + 2)) != doubleSymbols.end()) {
-        return Token(Token::KindSymbol, getOffset(index), getOffset(index + 2));
-    }
-    if (symbols.find(*index) != std::string::npos) {
-        return Token(Token::KindSymbol, getOffset(index), getOffset(index + 1));
-    }
-    return std::nullopt;
+    return Lexer2::TextChar(c, pos);
 }
