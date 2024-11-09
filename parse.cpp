@@ -69,37 +69,35 @@ int yylex(yy::parser::semantic_type *un, yy::parser::location_type *yyloc) {
 
 ast::Node *parse(std::string& text) {
     bisonProgramResult = nullptr;
-//    lexer = std::make_unique<Lexer>(source);
     stream = std::stringstream(text);
     lexer2 = std::make_unique<Lexer2>();
 
-//    std::unique_ptr<llvm::MemoryBuffer> buffer = llvm::MemoryBuffer::getMemBufferCopy(source, "buffer");
-//    assert(buffer);
-//    llvm::SourceMgr sourceMgr;
-//    int bufId = sourceMgr.AddNewSourceBuffer(std::move(buffer), llvm::SMLoc());
+    std::unique_ptr<llvm::MemoryBuffer> buffer = llvm::MemoryBuffer::getMemBufferCopy(text, "buffer");
+    assert(buffer);
+    llvm::SourceMgr sourceMgr;
+    int bufId = sourceMgr.AddNewSourceBuffer(std::move(buffer), llvm::SMLoc());
 
-//    int errorCount = 0;
-//    for (;;) {
-//        auto token = lexer->nextToken();
-//
-//
-//        if (token.getKind() == Token::KindEOF) {
-//            break;
-//        }
-//        if (token.getKind() == Token::KindInvalid) {
-//            errorCount++;
-////            llvm::SMLoc loc = llvm::SMLoc::getFromPointer(
-////                sourceMgr.getMemoryBuffer(bufId)->getBufferStart() + token.getStart());
-////            llvm::SMRange range(loc, llvm::SMLoc::getFromPointer(
-////                sourceMgr.getMemoryBuffer(bufId)->getBufferStart() + token.getEnd()));
-////            sourceMgr.PrintMessage(loc, llvm::SourceMgr::DK_Error, "invalid token", range);
-//        }
-//    }
-//    if (errorCount != 0) {
-//        return nullptr;
-//    }
+    int errorCount = 0;
+    auto stream2 = std::stringstream(text);
+    for (;;) {
+        auto token = lexer2->nextToken(stream2);
+        if (token.type == Lexer2::Token2::Eof) {
+            break;
+        }
+        if (token.type == Lexer2::Token2::Invalid) {
+            errorCount++;
+            llvm::SMLoc loc = llvm::SMLoc::getFromPointer(
+                sourceMgr.getMemoryBuffer(bufId)->getBufferStart() + token.begin.index);
+            llvm::SMRange range(loc, llvm::SMLoc::getFromPointer(
+                sourceMgr.getMemoryBuffer(bufId)->getBufferStart() + token.end.index));
+            sourceMgr.PrintMessage(loc, llvm::SourceMgr::DK_Error, "invalid token", range);
+        }
+    }
+    if (errorCount != 0) {
+        return nullptr;
+    }
 
-//    lexer = std::make_unique<Lexer>(source);
+    lexer2 = std::make_unique<Lexer2>();
 
     yy::parser parser;
     parser.parse();

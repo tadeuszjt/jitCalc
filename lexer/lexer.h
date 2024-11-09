@@ -34,7 +34,7 @@ class Lexer2 {
 
 public:
     struct Token2 {
-        enum TokenType { Integer, Ident, Keyword, Symbol, Newline, Indent, Dedent, Eof };
+        enum TokenType { Integer, Ident, Keyword, Symbol, Newline, Indent, Dedent, Eof, Invalid };
         TokenType type;
         TextPos begin;
         TextPos end;
@@ -43,6 +43,7 @@ public:
 
     Lexer2();
     Token2 nextToken(std::istream &istream);
+    std::optional<Token2> lexAny(std::istream &istream);
     std::optional<Token2> lexInteger(std::istream &istream);
     std::optional<Token2> lexIdent(std::istream &istream);
     std::optional<Token2> lexKeyword(std::istream &istream);
@@ -53,7 +54,7 @@ private:
     TextPos curPos;
     std::deque<TextChar> charQueue;
     std::vector<std::string> indentStack;
-    size_t dedentCount;
+    std::vector<Token2>      tokenStack;
 
     TextChar peek(size_t n, std::istream &istream);
     TextChar get(std::istream &istream);

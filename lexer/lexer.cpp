@@ -6,12 +6,11 @@
 
 Lexer2::Lexer2() {
     indentStack = {""};
-    dedentCount = 0;
 }
 
 
 Lexer2::Token2 Lexer2::nextToken(std::istream &istream) {
-    for (;;) {
+    for (;;) { // skip spaces
         auto nextChar = peek(0, istream);
         if (nextChar.c == ' ' || nextChar.c == '\t') {
             get(istream);
@@ -20,11 +19,33 @@ Lexer2::Token2 Lexer2::nextToken(std::istream &istream) {
         }
     }
 
-    if (dedentCount > 0) {
-        dedentCount--;
-        Lexer2::Token2 token{.type = Lexer2::Token2::Dedent, .str = "dedent"};
+    if (tokenStack.size() > 0) { // tokenStack used for multiple dedents etc
+        auto token = tokenStack.back();
+        tokenStack.pop_back();
         return token;
-    } else if (peek(0, istream).c == EOF) {
+    } else if (auto token = lexAny(istream); token.has_value()) {
+        return token.value();
+    } else { // create invalid token
+        auto beginPos = peek(0, istream).pos;
+        TextPos endPos = beginPos;
+        for (;;) {
+            auto ch = get(istream);
+            if (ch.c == '\t' || ch.c == ' ') {
+                break;
+            } 
+            endPos = peek(0, istream).pos;
+            if (auto token = lexAny(istream); token.has_value()) {
+                tokenStack.push_back(token.value());
+                break;
+            } 
+        }
+        return Token2{ .type = Token2::Invalid, .begin = beginPos, .end = endPos, .str = "invalid" };
+    }
+}
+
+
+std::optional<Lexer2::Token2> Lexer2::lexAny(std::istream &istream) {
+    if (peek(0, istream).c == EOF) {
         Lexer2::Token2 token{.type = Lexer2::Token2::Eof, .str = "Eof"};
         return token;
     } else if (auto token = lexInteger(istream); token.has_value()) {
@@ -37,18 +58,17 @@ Lexer2::Token2 Lexer2::nextToken(std::istream &istream) {
         return token.value();
     } else if (auto token = lexIdent(istream); token.has_value()) {
         return token.value();
-    } else {
-        assert(false);
     }
+
+    return std::nullopt;
 }
 
 
 std::optional<Lexer2::Token2> Lexer2::lexInteger(std::istream &istream) {
-    auto first = peek(0, istream);
-    if (!isdigit(first.c)) {
+    if (!isdigit(peek(0, istream).c)) {
         return std::nullopt;
     }
-    Lexer2::Token2 token{.type = Lexer2::Token2::Integer, .begin = first.pos};
+    Lexer2::Token2 token{.type = Lexer2::Token2::Integer, .begin = peek(0, istream).pos};
 
     while (isdigit(peek(0, istream).c)) {
         token.str.push_back(get(istream).c);
@@ -146,7 +166,8 @@ std::optional<Lexer2::Token2> Lexer2::lexSymbol(std::istream &istream) {
 
 
 std::optional<Lexer2::Token2> Lexer2::lexIndent(std::istream &istream) {
-    if (peek(0, istream).c != '\n') {
+    auto first = peek(0, istream);
+    if (first.c != '\n') {
         return std::nullopt;
     }
 
@@ -183,11 +204,15 @@ std::optional<Lexer2::Token2> Lexer2::lexIndent(std::istream &istream) {
                 break;
             } else {
                 indentStack.pop_back();
-                dedentCount++;
+                tokenStack.push_back(Token2{
+                    .type = Token2::Dedent,
+                    .begin = first.pos,
+                    .end  = peek(0, istream).pos,
+                    .str = "dedent"
+                });
             }
         }
 
-        printf("here: %d\n", dedentCount);
         token.type = Lexer2::Token2::Newline;
         token.str  = "newline";
     } else {
@@ -200,17 +225,15 @@ std::optional<Lexer2::Token2> Lexer2::lexIndent(std::istream &istream) {
 
 Lexer2::TextChar Lexer2::peek(size_t n, std::istream &istream) {
     while (n >= charQueue.size()) {
-        auto ch = nextCharFromStream(istream);
-        charQueue.push_front(ch);
+        charQueue.push_back(nextCharFromStream(istream));
     }
-
-    return charQueue[charQueue.size() - 1 - n];
+    return charQueue[n];
 }
 
 Lexer2::TextChar Lexer2::get(std::istream &istream) {
     if (charQueue.size() > 0) {
-        auto ch = charQueue.back();
-        charQueue.pop_back();
+        auto ch = charQueue.front();
+        charQueue.pop_front();
         return ch;
     }
     return nextCharFromStream(istream);
@@ -225,13 +248,11 @@ Lexer2::TextChar Lexer2::nextCharFromStream(std::istream &istream) {
         return Lexer2::TextChar(EOF, pos);
     }
 
+    curPos.index++;
+    curPos.column++;
     if (c == '\n') {
         curPos.line++; 
         curPos.column = 1;
-    } else {
-        curPos.column++;
     }
-    curPos.index++;
-
     return Lexer2::TextChar(c, pos);
 }
