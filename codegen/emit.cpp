@@ -29,6 +29,18 @@ void Emit::emitStmt(const ast::Node &stmt) {
         emitReturn(e);
         return;
     }
+    if (auto *let = dyn_cast<ast::Let>(&stmt)) {
+        auto *expr = emitExpression(*let->expr);
+
+        auto *curBlk = builder.getCurrentBlock();
+        builder.setCurrentBlock(builder.getEntryBlock());
+        llvm::AllocaInst *var = builder.ir().CreateAlloca(builder.ir().getInt32Ty());
+        symTab.insert(let->name, SymbolTable::ObjVar{var});
+        builder.setCurrentBlock(curBlk);
+
+        builder.ir().CreateStore(expr, var);
+        return;
+    }
     if (auto *if_ = dyn_cast<ast::If>(&stmt)) {
         auto *cnd = emitExpression(*if_->cnd);
         auto *cmp = builder.ir().CreateICmpEQ(cnd, emitInt32(0));
@@ -66,7 +78,8 @@ void Emit::emitFuncDef(const ast::FnDef& fnDef) {
     symTab.insert(fnDef.name->ident, SymbolTable::ObjFunc{fnDef.args->size()});
 
     std::vector<Type*> argTypes(fnDef.args->size(), builder.ir().getInt32Ty());
-    builder.createFunction(fnDef.name->ident, argTypes, builder.ir().getInt32Ty());
+    llvm::BasicBlock *entry = builder.createFunction(
+        fnDef.name->ident, argTypes, builder.ir().getInt32Ty());
     builder.setCurrentFunction(fnDef.name->ident);
 
     symTab.pushScope();
@@ -74,7 +87,7 @@ void Emit::emitFuncDef(const ast::FnDef& fnDef) {
     for (int i = 0; i < fnDef.args->size(); i++) {
         std::cout << "defining: " << (*fnDef.args).list[i]->ident << std::endl;
         symTab.insert((*fnDef.args).list[i]->ident,
-                      SymbolTable::ObjFloat{builder.getCurrentFuncArg(i)});
+                      SymbolTable::ObjArg{builder.getCurrentFuncArg(i)});
     }
 
     for (ast::Node *stmtPtr : (*fnDef.body).list) {
@@ -123,8 +136,12 @@ Value* Emit::emitExpression(const ast::Node &expr) {
     }
     if (auto *ident = dyn_cast<ast::Ident>(&expr)) {
         auto object = symTab.look(ident->ident);
-        if (std::holds_alternative<SymbolTable::ObjFloat>(object)) {
-            return std::get<SymbolTable::ObjFloat>(object).value;
+        if (std::holds_alternative<SymbolTable::ObjArg>(object)) {
+            return std::get<SymbolTable::ObjArg>(object).value;
+        }
+        if (std::holds_alternative<SymbolTable::ObjVar>(object)) {
+            return builder.ir().CreateLoad(
+                builder.ir().getInt32Ty(), std::get<SymbolTable::ObjVar>(object).var);
         }
 
         assert(false);

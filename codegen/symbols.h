@@ -5,6 +5,7 @@
 #include <variant>
 #include <vector>
 
+#include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Instruction.h>
 
 
@@ -15,15 +16,19 @@ public:
         size_t numArgs;
     };
 
-    struct ObjFloat {
-        llvm::Value *value;
-    };
-
     struct ObjInt32 {
         llvm::Value *value;
     };
 
-    using Object = std::variant<ObjFunc, ObjFloat, ObjInt32>;
+    struct ObjArg {
+        llvm::Value *value;
+    };
+
+    struct ObjVar {
+        llvm::AllocaInst *var;
+    };
+
+    using Object = std::variant<ObjFunc, ObjInt32, ObjArg, ObjVar>;
 
 
     SymbolTable();

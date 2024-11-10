@@ -11,8 +11,8 @@
 // Implements a custom lexer to turn strings into vectors of tokens.
 
 
-const std::vector keywords = {"fn", "if", "else", "return"};
-const std::string symbols = "+-*/()><";
+const std::vector keywords = {"fn", "if", "else", "return", "let"};
+const std::string symbols = "+-*/()><=";
 const std::vector<std::string> doubleSymbols = {"=="};
 
 

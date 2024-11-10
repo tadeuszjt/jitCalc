@@ -22,7 +22,7 @@ enum Operator {
 class Node {
 public:
     enum NodeKind { NodeList, NodeReturn, NodeIdent, NodeInteger, NodeFloating, NodeInfix,
-        NodePrefix, NodeCall, NodeFnDef, NodeIf };
+        NodePrefix, NodeCall, NodeFnDef, NodeIf, NodeLet };
 
     NodeKind getKind() const { return kind; }
     Node(NodeKind kind) : kind(kind) {}
@@ -127,6 +127,16 @@ struct If : public Node {
     List<Node> *falseBody;
 
     static bool classof(const Node *node) { return node->getKind() == NodeIf; }
+};
+
+
+struct Let : public Node {
+    Let(std::string &name, Node *expr) : Node(NodeLet), name(name), expr(expr) {}
+
+    std::string name;
+    Node *expr;
+
+    static bool classof(const Node *node) { return node->getKind() == NodeLet; }
 };
 }
 

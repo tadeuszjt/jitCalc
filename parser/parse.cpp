@@ -36,6 +36,12 @@ int yylex(yy::parser::semantic_type *un, yy::parser::location_type *yyloc) {
             return yy::parser::token::fn;
         } else if (token.str == "return") {
             return yy::parser::token::Return;
+        } else if (token.str == "if") {
+            return yy::parser::token::If;
+        } else if (token.str == "else") {
+            return yy::parser::token::Else;
+        } else if (token.str == "let") {
+            return yy::parser::token::Let;
         }
         assert(false);
         break;
@@ -58,6 +64,8 @@ int yylex(yy::parser::semantic_type *un, yy::parser::location_type *yyloc) {
             return '(';
         } else if (token.str == ")") {
             return ')';
+        } else if (token.str == "=") {
+            return '=';
         } else if (token.str == "==") {
             return yy::parser::token::EqEq;
         }

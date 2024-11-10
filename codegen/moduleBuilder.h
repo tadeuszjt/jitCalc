@@ -11,13 +11,15 @@ public:
     ModuleBuilder(llvm::LLVMContext &context, const std::string &name);
 
     void createExtern(const std::string &name, const std::vector<llvm::Type*> &argTypes, llvm::Type *returnType);
-    void createFunction(const std::string &name, const std::vector<llvm::Type*> &argTypes, llvm::Type *returnType);
     void setCurrentFunction(const std::string &name);
     llvm::Argument *getCurrentFuncArg(size_t argIndex);
     llvm::Value* createCall(const std::string &name, const std::vector<llvm::Value*> &args);
+    llvm::BasicBlock* createFunction(const std::string &name, const std::vector<llvm::Type*> &argTypes, llvm::Type *returnType);
 
     llvm::BasicBlock* appendNewBlock();
     void setCurrentBlock(llvm::BasicBlock *);
+    llvm::BasicBlock* getCurrentBlock();
+    llvm::BasicBlock* getEntryBlock();
 
 
     void printModule();

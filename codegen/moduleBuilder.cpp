@@ -52,6 +52,17 @@ void ModuleBuilder::setCurrentBlock(BasicBlock *block) {
 }
 
 
+llvm::BasicBlock* ModuleBuilder::getCurrentBlock() {
+    llvm::BasicBlock *block = irBuilder.GetInsertBlock();
+    assert(block != nullptr);
+    return block;
+}
+
+llvm::BasicBlock* ModuleBuilder::getEntryBlock() {
+    assert(curFn != nullptr);
+    return &curFn->getEntryBlock();
+}
+
 Argument *ModuleBuilder::getCurrentFuncArg(size_t argIndex) {
     assert(curFn != nullptr);
     assert(argIndex < std::distance(curFn->args().begin(), curFn->args().end()));
@@ -75,13 +86,14 @@ void ModuleBuilder::createExtern(const std::string &name,
     assert(fn != nullptr);
 }
 
-void ModuleBuilder::createFunction(const std::string &name, const std::vector<Type*> &argTypes, Type *returnType) {
+BasicBlock* ModuleBuilder::createFunction(const std::string &name, const std::vector<Type*> &argTypes, Type *returnType) {
     FunctionType *fnType = FunctionType::get(returnType, argTypes, false);
     assert(fnType != nullptr);
     Function *fn = Function::Create(fnType, Function::ExternalLinkage, name, irModule.get());
     assert(fn != nullptr);
     BasicBlock *block = BasicBlock::Create(irModule->getContext(), "EntryBlock", fn);
     assert(block != nullptr);
+    return block;
 }
 
 void ModuleBuilder::setCurrentFunction(const std::string &name) {
