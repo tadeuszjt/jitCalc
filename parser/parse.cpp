@@ -17,6 +17,11 @@ extern ast::Node              *bisonProgramResult;
 int yylex(yy::parser::semantic_type *un, yy::parser::location_type *yyloc) {
     auto token = lexer2->nextToken(stream);
 
+    yyloc->begin.line   = token.begin.line;
+    yyloc->begin.column = token.begin.column;
+    yyloc->end.line     = token.end.line;
+    yyloc->end.column   = token.end.column;
+
     switch (token.type) {
     case Lexer2::Token2::Eof:
         return yy::parser::token::YYEOF;
@@ -72,7 +77,7 @@ ast::Node *parse(std::string& text) {
     stream = std::stringstream(text);
     lexer2 = std::make_unique<Lexer2>();
 
-    std::unique_ptr<llvm::MemoryBuffer> buffer = llvm::MemoryBuffer::getMemBufferCopy(text, "buffer");
+    std::unique_ptr<llvm::MemoryBuffer> buffer = llvm::MemoryBuffer::getMemBuffer(text, "buffer");
     assert(buffer);
     llvm::SourceMgr sourceMgr;
     int bufId = sourceMgr.AddNewSourceBuffer(std::move(buffer), llvm::SMLoc());

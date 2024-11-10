@@ -30,7 +30,7 @@ add_custom_command(
 )
 
 # create executable from sources
-add_executable(jitCalc main.cpp parse.cpp lexer/lexer.cpp parser/ast.cpp codegen/emit.cpp codegen/moduleBuilder.cpp codegen/symbols.cpp ${BISON_OUTPUT})
+add_executable(jitCalc main.cpp parser/parse.cpp lexer/lexer.cpp parser/ast.cpp codegen/emit.cpp codegen/moduleBuilder.cpp codegen/symbols.cpp ${BISON_OUTPUT})
 
 # make sure llvm is installed
 find_package(LLVM REQUIRED CONFIG)

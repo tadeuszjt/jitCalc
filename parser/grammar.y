@@ -105,7 +105,7 @@ exprs1
 namespace yy {
 // provide a definition for the virtual error member
 void parser::error(const location_type& loc, const string& msg) {
-    cerr << "Bison error: " << msg << endl;
+    cerr << loc.begin.line << ":" << loc.begin.column << ": " << msg << endl;
 }
 }
 
