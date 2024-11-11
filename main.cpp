@@ -71,8 +71,9 @@ int main(int argc, char **argv) {
             Emit emit(*context.getContext(), "jitCalc_child");
             emit.setSymbolTable(symTab);
             emit.emitFuncDef(*fnDef);
-            emit.mod().optimiseModule();
             emit.mod().printModule();
+            emit.mod().verifyModule();
+            emit.mod().optimiseModule();
             symTab = emit.getSymbolTable();
 
             cantFail(jit->addIRModule(dyLib, orc::ThreadSafeModule(emit.mod().moveModule(), context)));
@@ -85,8 +86,9 @@ int main(int argc, char **argv) {
             auto *v = emit.emitExpression(*result);
             emit.emitPrint(v);
             emit.emitReturnNoBlock(emit.emitInt32(0));
-            emit.mod().optimiseModule();
             emit.mod().printModule();
+            emit.mod().verifyModule();
+            emit.mod().optimiseModule();
 
             auto tracker = dyLib.createResourceTracker();
             cantFail(jit->addIRModule(tracker, orc::ThreadSafeModule(emit.mod().moveModule(), context)));

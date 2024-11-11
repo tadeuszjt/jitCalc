@@ -3,6 +3,8 @@
 #include <iterator>
 
 #include <llvm/Passes/PassBuilder.h>
+#include <llvm/Support/raw_ostream.h>
+#include <llvm/IR/Verifier.h>
 
 using namespace llvm;
 
@@ -41,9 +43,9 @@ Value* ModuleBuilder::createCall(const std::string &name, const std::vector<Valu
     return irBuilder.CreateCall(irModule->getFunction(name), args);
 }
 
-BasicBlock* ModuleBuilder::appendNewBlock() {
+BasicBlock* ModuleBuilder::appendNewBlock(const std::string &suggestion) {
     assert(curFn != nullptr);
-    return BasicBlock::Create(irBuilder.getContext(), "block", curFn);
+    return BasicBlock::Create(irBuilder.getContext(), suggestion.c_str(), curFn);
 }
 
 void ModuleBuilder::setCurrentBlock(BasicBlock *block) {
@@ -105,4 +107,9 @@ void ModuleBuilder::setCurrentFunction(const std::string &name) {
 
 void ModuleBuilder::printModule() {
     irModule->print(outs(), nullptr);
+}
+
+void ModuleBuilder::verifyModule() {
+    bool failed = llvm::verifyModule(*irModule, &llvm::errs());
+    assert(!failed);
 }

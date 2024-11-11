@@ -33,7 +33,7 @@ using namespace ast;
 
 
 %token NEWLINE INDENT DEDENT INTEGER FLOATING ident
-%token fn If Else Return Let
+%token fn If Else Return Let For
 %token '(' ')' ','
 %token '+' '-' '*' '/' '<' '>' EqEq
 
@@ -69,6 +69,7 @@ expr
 
 line
     : Return expr        { $$ = new Return($2); }
+    | ident '=' expr     { $$ = new Set(cast<Ident>($1)->ident, $3); }
     | Let ident '=' expr { $$ = new Let(cast<Ident>($2)->ident, $4); };
 
 block
@@ -77,7 +78,9 @@ block
     | If expr INDENT stmts1 DEDENT
         { $$ = new If($2, cast<List<Node>>($4), new List<Node>()); }
     | If expr INDENT stmts1 DEDENT Else INDENT stmts1 DEDENT
-        { $$ = new If($2, cast<List<Node>>($4), cast<List<Node>>($8)); };
+        { $$ = new If($2, cast<List<Node>>($4), cast<List<Node>>($8)); }
+    | For expr INDENT stmts1 DEDENT 
+        { $$ = new For($2, cast<List<Node>>($4)); };
 
 stmts1
     : line NEWLINE        { $$ = new List<Node>($1); }

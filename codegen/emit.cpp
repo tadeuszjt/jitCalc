@@ -41,6 +41,13 @@ void Emit::emitStmt(const ast::Node &stmt) {
         builder.ir().CreateStore(expr, var);
         return;
     }
+    if (auto *set = dyn_cast<ast::Set>(&stmt)) {
+        auto *expr = emitExpression(*set->expr);
+        auto obj = symTab.look(set->name);
+        assert(std::holds_alternative<SymbolTable::ObjVar>(obj));
+        builder.ir().CreateStore(expr, std::get<SymbolTable::ObjVar>(obj).var);
+        return;
+    }
     if (auto *if_ = dyn_cast<ast::If>(&stmt)) {
         auto *cnd = emitExpression(*if_->cnd);
         auto *cmp = builder.ir().CreateICmpEQ(cnd, emitInt32(0));
@@ -70,9 +77,44 @@ void Emit::emitStmt(const ast::Node &stmt) {
         builder.setCurrentBlock(end);
         return;
     }
+    if (auto *for_ = dyn_cast<ast::For>(&stmt)) {
+
+        BasicBlock *curBlk = builder.getCurrentBlock();
+        BasicBlock *forBlk = builder.appendNewBlock("for");
+        BasicBlock *bdyBlk = builder.appendNewBlock("body");
+        BasicBlock *bdyEndBlk = builder.appendNewBlock("bodyEnd");
+        BasicBlock *endBlk = builder.appendNewBlock("end");
+
+        builder.ir().CreateBr(forBlk);
+        builder.setCurrentBlock(forBlk);
+
+        PHINode *idx = builder.ir().CreatePHI(builder.getInt32Ty(), 2);
+        idx->addIncoming(builder.ir().getInt32(0), curBlk);
+        auto *idx2 = builder.ir().CreateAdd(idx, builder.ir().getInt32(1),  "increment");
+        idx->addIncoming(idx2, bdyEndBlk);
+
+        auto *val = emitExpression(*for_->cnd);
+        auto *cnd = builder.ir().CreateICmpSLT(idx, val);
+
+        builder.ir().CreateCondBr(cnd, bdyBlk, endBlk);
+
+        builder.setCurrentBlock(bdyBlk);
+        symTab.pushScope();
+        for (ast::Node *stmtPtr : (*for_->body).list) {
+            emitStmt(*stmtPtr);
+        }
+        symTab.popScope();
+        builder.ir().CreateBr(bdyEndBlk);
+        builder.setCurrentBlock(bdyEndBlk);
+        builder.ir().CreateBr(forBlk);
+
+        builder.setCurrentBlock(endBlk);
+        return;
+    }
 
     assert(false);
 }
+
 
 void Emit::emitFuncDef(const ast::FnDef& fnDef) {
     symTab.insert(fnDef.name->ident, SymbolTable::ObjFunc{fnDef.args->size()});
@@ -93,7 +135,6 @@ void Emit::emitFuncDef(const ast::FnDef& fnDef) {
     for (ast::Node *stmtPtr : (*fnDef.body).list) {
         emitStmt(*stmtPtr);
     }
-
 
     symTab.popScope();
 

@@ -42,6 +42,8 @@ int yylex(yy::parser::semantic_type *un, yy::parser::location_type *yyloc) {
             return yy::parser::token::Else;
         } else if (token.str == "let") {
             return yy::parser::token::Let;
+        } else if (token.str == "for") {
+            return yy::parser::token::For;
         }
         assert(false);
         break;

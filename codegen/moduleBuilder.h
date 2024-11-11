@@ -16,7 +16,7 @@ public:
     llvm::Value* createCall(const std::string &name, const std::vector<llvm::Value*> &args);
     llvm::BasicBlock* createFunction(const std::string &name, const std::vector<llvm::Type*> &argTypes, llvm::Type *returnType);
 
-    llvm::BasicBlock* appendNewBlock();
+    llvm::BasicBlock* appendNewBlock(const std::string &suggestion = "block");
     void setCurrentBlock(llvm::BasicBlock *);
     llvm::BasicBlock* getCurrentBlock();
     llvm::BasicBlock* getEntryBlock();
@@ -24,6 +24,7 @@ public:
 
     void printModule();
     void optimiseModule();
+    void verifyModule();
 
     llvm::Type *getInt32Ty() { return irBuilder.getInt32Ty(); }
     llvm::Type *getFloatTy() { return irBuilder.getFloatTy(); }
