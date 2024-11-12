@@ -12,7 +12,7 @@
 
 
 const std::vector keywords = {"fn", "if", "else", "return", "let", "for"};
-const std::string symbols = "+-*/()><=";
+const std::string symbols = "+-*/()><=,";
 const std::vector<std::string> doubleSymbols = {"=="};
 
 

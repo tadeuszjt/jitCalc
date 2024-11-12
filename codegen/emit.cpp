@@ -22,24 +22,23 @@ void Emit::emitFuncExtern(const std::string &name, size_t numArgs) {
 void Emit::emitStmt(const ast::Node &stmt) {
     if (auto *fnDef = dyn_cast<ast::FnDef>(&stmt)) {
         emitFuncDef(*fnDef);
+
     } else if (auto *ret = dyn_cast<ast::Return>(&stmt)) {
         auto *e = emitExpression(*ret->expr);
         emitReturn(e);
+
     } else if (auto *let = dyn_cast<ast::Let>(&stmt)) {
         auto *expr = emitExpression(*let->expr);
+        auto id = symTab.insert(let->name);
+        objTable[id] = ObjVar{};
+        writeVariable(id, builder.getCurrentBlock(), expr);
 
-        auto *curBlk = builder.getCurrentBlock();
-        builder.setCurrentBlock(builder.getEntryBlock());
-        llvm::AllocaInst *var = builder.ir().CreateAlloca(builder.ir().getInt32Ty());
-        objTable[symTab.insert(let->name)] = ObjVar{var};
-        builder.setCurrentBlock(curBlk);
-
-        builder.ir().CreateStore(expr, var);
     } else if (auto *set = dyn_cast<ast::Set>(&stmt)) {
         auto *expr = emitExpression(*set->expr);
         auto obj = look(set->name);
         assert(std::holds_alternative<ObjVar>(obj));
-        builder.ir().CreateStore(expr, std::get<ObjVar>(obj).var);
+        writeVariable(symTab.look(set->name), builder.getCurrentBlock(), expr);
+
     } else if (auto *if_ = dyn_cast<ast::If>(&stmt)) {
         auto *cnd = emitExpression(*if_->cnd);
         auto *cmp = builder.ir().CreateICmpEQ(cnd, emitInt32(0));
@@ -50,8 +49,12 @@ void Emit::emitStmt(const ast::Node &stmt) {
 
         builder.ir().CreateCondBr(cmp, falseBlk, trueBlk);
 
+        sealBlock(falseBlk);
+        sealBlock(trueBlk);
+
         builder.setCurrentBlock(trueBlk);
         symTab.pushScope();
+
         for (ast::Node *stmtPtr : (*if_->trueBody).list) {
             emitStmt(*stmtPtr);
         }
@@ -60,13 +63,17 @@ void Emit::emitStmt(const ast::Node &stmt) {
 
         builder.setCurrentBlock(falseBlk);
         symTab.pushScope();
+
         for (ast::Node *stmtPtr : (*if_->falseBody).list) {
             emitStmt(*stmtPtr);
         }
         symTab.popScope();
         builder.ir().CreateBr(end);
 
+        sealBlock(end);
+
         builder.setCurrentBlock(end);
+
     } else if (auto *for_ = dyn_cast<ast::For>(&stmt)) {
         BasicBlock *curBlk = builder.getCurrentBlock();
         BasicBlock *forBlk = builder.appendNewBlock("for");
@@ -87,17 +94,28 @@ void Emit::emitStmt(const ast::Node &stmt) {
 
         builder.ir().CreateCondBr(cnd, bdyBlk, endBlk);
 
+        sealBlock(bdyBlk);
+
         builder.setCurrentBlock(bdyBlk);
         symTab.pushScope();
+
         for (ast::Node *stmtPtr : (*for_->body).list) {
             emitStmt(*stmtPtr);
         }
         symTab.popScope();
         builder.ir().CreateBr(bdyEndBlk);
+
+        sealBlock(bdyEndBlk);
+
         builder.setCurrentBlock(bdyEndBlk);
         builder.ir().CreateBr(forBlk);
 
+        sealBlock(forBlk);
+
         builder.setCurrentBlock(endBlk);
+
+        sealBlock(endBlk);
+
     } else {
         assert(false);
     }
@@ -109,15 +127,18 @@ void Emit::emitFuncDef(const ast::FnDef& fnDef) {
     funcDefs.push_back(std::make_pair<std::string, int>(std::string(fnDef.name->ident), fnDef.args->size()));
 
     std::vector<Type*> argTypes(fnDef.args->size(), builder.ir().getInt32Ty());
-    llvm::BasicBlock *entry = builder.createFunction(
+    BasicBlock *entry = builder.createFunction(
         fnDef.name->ident, argTypes, builder.ir().getInt32Ty());
     builder.setCurrentFunction(fnDef.name->ident);
+
+    sealBlock(entry);
 
     symTab.pushScope();
 
     for (int i = 0; i < fnDef.args->size(); i++) {
-        std::cout << "defining: " << (*fnDef.args).list[i]->ident << std::endl;
-        objTable[symTab.insert((*fnDef.args).list[i]->ident)] = ObjArg{builder.getCurrentFuncArg(i)};
+        auto id = symTab.insert((*fnDef.args).list[i]->ident);
+        writeVariable(id, entry, builder.getCurrentFuncArg(i));
+        objTable[id] = ObjVar{};
     }
 
     for (ast::Node *stmtPtr : (*fnDef.body).list) {
@@ -125,7 +146,6 @@ void Emit::emitFuncDef(const ast::FnDef& fnDef) {
     }
 
     symTab.popScope();
-
     emitReturnNoBlock(emitInt32(0));
 }
 
@@ -133,7 +153,6 @@ void Emit::emitFuncDef(const ast::FnDef& fnDef) {
 Value* Emit::emitInt32(int n) {
     return builder.ir().getInt32(n);
 }
-
 
 void Emit::startFunction(const std::string &name) {
     builder.createFunction(name, {}, builder.getInt32Ty());
@@ -165,13 +184,8 @@ Value* Emit::emitExpression(const ast::Node &expr) {
     }
     if (auto *ident = dyn_cast<ast::Ident>(&expr)) {
         auto object = look(ident->ident);
-
-        if (std::holds_alternative<ObjArg>(object)) {
-            return std::get<ObjArg>(object).value;
-        }
         if (std::holds_alternative<ObjVar>(object)) {
-            return builder.ir().CreateLoad(
-                builder.ir().getInt32Ty(), std::get<ObjVar>(object).var);
+            return readVariable(symTab.look(ident->ident), builder.getCurrentBlock());
         }
 
         assert(false);
@@ -252,4 +266,76 @@ void Emit::emitPrint(Value *value) {
     }
 
     builder.createCall("printf", printfArgs);
+}
+
+Object Emit::look(const std::string &name) {
+    auto id = symTab.look(name);
+    if (objTable.find(id) == objTable.end()) {
+        assert(false);
+    }
+    return objTable[id];
+}
+
+void Emit::sealBlock(BasicBlock *block) {
+    assert(sealedBlocks.find(block) == sealedBlocks.end());
+
+    if (incompletePhis.find(block) != incompletePhis.end()) {
+        for (auto &pair : incompletePhis[block]) {
+            addPhiOperands(pair.first, incompletePhis[block][pair.first]);
+        }
+    }
+    sealedBlocks.insert(block);
+}
+
+void Emit::writeVariable(SymbolTable::ID variable, BasicBlock* block, Value *value) {
+    currentDefs[variable][block] = value;
+}
+
+Value* Emit::readVariable(SymbolTable::ID variable, BasicBlock* block) {
+    if (currentDefs.find(variable) != currentDefs.end()) { // local value numbering
+        if (currentDefs[variable].find(block) != currentDefs[variable].end()) {
+            return currentDefs[variable][block];
+        }
+    }
+
+    return readVariableRecursive(variable, block);
+}
+
+
+Value* Emit::readVariableRecursive(SymbolTable::ID variable, BasicBlock* block) {
+    Value *val;
+
+    if (sealedBlocks.find(block) == sealedBlocks.end()) {
+        auto *phi = newPhi(block);
+        incompletePhis[block][variable] = phi;
+        val = phi;
+    } else if (pred_size(block) == 1) {
+        val = readVariable(variable, *pred_begin(block));
+    } else {
+        val = newPhi(block);
+        writeVariable(variable, block, val);
+        addPhiOperands(variable, (PHINode*)val);
+    }
+
+    writeVariable(variable, block, val);
+    return val;
+}
+
+PHINode *Emit::newPhi(BasicBlock* block) {
+    auto prevInsertionPoint = builder.ir().saveIP();
+    if (!block->empty()) {
+        builder.ir().SetInsertPoint(&block->front());
+    } else {
+        builder.ir().SetInsertPoint(block);
+    }
+    auto *phi = builder.ir().CreatePHI(builder.getInt32Ty(), 0, "phi");
+    assert(phi != nullptr);
+    builder.ir().restoreIP(prevInsertionPoint);
+    return phi;
+}
+
+void Emit::addPhiOperands(SymbolTable::ID variable, PHINode *phi) {
+    for (auto *pred : predecessors(phi->getParent())) {
+        phi->addIncoming(readVariable(variable, pred), pred);
+    }
 }
