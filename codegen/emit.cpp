@@ -13,7 +13,7 @@ Emit::Emit(LLVMContext &context, const std::string &name)
 
 
 void Emit::emitFuncExtern(const std::string &name, size_t numArgs) {
-    symTab.insert(name, SymbolTable::ObjFunc{numArgs});
+    objTable[symTab.insert(name)] = ObjFunc{numArgs};
     std::vector<Type*> argTypes(numArgs, builder.ir().getInt32Ty());
     builder.createExtern(name, argTypes, builder.ir().getInt32Ty());
 }
@@ -22,33 +22,25 @@ void Emit::emitFuncExtern(const std::string &name, size_t numArgs) {
 void Emit::emitStmt(const ast::Node &stmt) {
     if (auto *fnDef = dyn_cast<ast::FnDef>(&stmt)) {
         emitFuncDef(*fnDef);
-        return;
-    }
-    if (auto *ret = dyn_cast<ast::Return>(&stmt)) {
+    } else if (auto *ret = dyn_cast<ast::Return>(&stmt)) {
         auto *e = emitExpression(*ret->expr);
         emitReturn(e);
-        return;
-    }
-    if (auto *let = dyn_cast<ast::Let>(&stmt)) {
+    } else if (auto *let = dyn_cast<ast::Let>(&stmt)) {
         auto *expr = emitExpression(*let->expr);
 
         auto *curBlk = builder.getCurrentBlock();
         builder.setCurrentBlock(builder.getEntryBlock());
         llvm::AllocaInst *var = builder.ir().CreateAlloca(builder.ir().getInt32Ty());
-        symTab.insert(let->name, SymbolTable::ObjVar{var});
+        objTable[symTab.insert(let->name)] = ObjVar{var};
         builder.setCurrentBlock(curBlk);
 
         builder.ir().CreateStore(expr, var);
-        return;
-    }
-    if (auto *set = dyn_cast<ast::Set>(&stmt)) {
+    } else if (auto *set = dyn_cast<ast::Set>(&stmt)) {
         auto *expr = emitExpression(*set->expr);
-        auto obj = symTab.look(set->name);
-        assert(std::holds_alternative<SymbolTable::ObjVar>(obj));
-        builder.ir().CreateStore(expr, std::get<SymbolTable::ObjVar>(obj).var);
-        return;
-    }
-    if (auto *if_ = dyn_cast<ast::If>(&stmt)) {
+        auto obj = look(set->name);
+        assert(std::holds_alternative<ObjVar>(obj));
+        builder.ir().CreateStore(expr, std::get<ObjVar>(obj).var);
+    } else if (auto *if_ = dyn_cast<ast::If>(&stmt)) {
         auto *cnd = emitExpression(*if_->cnd);
         auto *cmp = builder.ir().CreateICmpEQ(cnd, emitInt32(0));
 
@@ -75,10 +67,7 @@ void Emit::emitStmt(const ast::Node &stmt) {
         builder.ir().CreateBr(end);
 
         builder.setCurrentBlock(end);
-        return;
-    }
-    if (auto *for_ = dyn_cast<ast::For>(&stmt)) {
-
+    } else if (auto *for_ = dyn_cast<ast::For>(&stmt)) {
         BasicBlock *curBlk = builder.getCurrentBlock();
         BasicBlock *forBlk = builder.appendNewBlock("for");
         BasicBlock *bdyBlk = builder.appendNewBlock("body");
@@ -109,15 +98,15 @@ void Emit::emitStmt(const ast::Node &stmt) {
         builder.ir().CreateBr(forBlk);
 
         builder.setCurrentBlock(endBlk);
-        return;
+    } else {
+        assert(false);
     }
-
-    assert(false);
 }
 
 
 void Emit::emitFuncDef(const ast::FnDef& fnDef) {
-    symTab.insert(fnDef.name->ident, SymbolTable::ObjFunc{fnDef.args->size()});
+    objTable[symTab.insert(fnDef.name->ident)] = ObjFunc{fnDef.args->size()};
+    funcDefs.push_back(std::make_pair<std::string, int>(std::string(fnDef.name->ident), fnDef.args->size()));
 
     std::vector<Type*> argTypes(fnDef.args->size(), builder.ir().getInt32Ty());
     llvm::BasicBlock *entry = builder.createFunction(
@@ -128,8 +117,7 @@ void Emit::emitFuncDef(const ast::FnDef& fnDef) {
 
     for (int i = 0; i < fnDef.args->size(); i++) {
         std::cout << "defining: " << (*fnDef.args).list[i]->ident << std::endl;
-        symTab.insert((*fnDef.args).list[i]->ident,
-                      SymbolTable::ObjArg{builder.getCurrentFuncArg(i)});
+        objTable[symTab.insert((*fnDef.args).list[i]->ident)] = ObjArg{builder.getCurrentFuncArg(i)};
     }
 
     for (ast::Node *stmtPtr : (*fnDef.body).list) {
@@ -176,21 +164,22 @@ Value* Emit::emitExpression(const ast::Node &expr) {
         return emitPrefix(*prefix);
     }
     if (auto *ident = dyn_cast<ast::Ident>(&expr)) {
-        auto object = symTab.look(ident->ident);
-        if (std::holds_alternative<SymbolTable::ObjArg>(object)) {
-            return std::get<SymbolTable::ObjArg>(object).value;
+        auto object = look(ident->ident);
+
+        if (std::holds_alternative<ObjArg>(object)) {
+            return std::get<ObjArg>(object).value;
         }
-        if (std::holds_alternative<SymbolTable::ObjVar>(object)) {
+        if (std::holds_alternative<ObjVar>(object)) {
             return builder.ir().CreateLoad(
-                builder.ir().getInt32Ty(), std::get<SymbolTable::ObjVar>(object).var);
+                builder.ir().getInt32Ty(), std::get<ObjVar>(object).var);
         }
 
         assert(false);
     }
     if (auto *call = dyn_cast<ast::Call>(&expr)) {
-        auto object = symTab.look(call->name);
-        if (std::holds_alternative<SymbolTable::ObjFunc>(object)) {
-            size_t num_args = std::get<SymbolTable::ObjFunc>(object).numArgs;
+        auto object = look(call->name);
+        if (std::holds_alternative<ObjFunc>(object)) {
+            size_t num_args = std::get<ObjFunc>(object).numArgs;
             assert(call->args->size() == num_args);
 
             std::vector<Value*> vals;

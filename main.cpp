@@ -51,8 +51,7 @@ int main(int argc, char **argv) {
     auto jit = cantFail(orc::LLJITBuilder().create());
     auto &dyLib = cantFail(jit->createJITDylib("jitCalc_dyLib"));
 
-
-    SymbolTable symTab;
+    std::vector<std::pair<std::string, int>> funcDefs;
 
     for (;;) {
         std::string input = getNextInput();
@@ -69,19 +68,20 @@ int main(int argc, char **argv) {
             auto lock = context.getLock();
 
             Emit emit(*context.getContext(), "jitCalc_child");
-            emit.setSymbolTable(symTab);
+            emit.addFuncDefs(funcDefs);
             emit.emitFuncDef(*fnDef);
             emit.mod().printModule();
             emit.mod().verifyModule();
             emit.mod().optimiseModule();
-            symTab = emit.getSymbolTable();
+
+            funcDefs = emit.getFuncDefs();
 
             cantFail(jit->addIRModule(dyLib, orc::ThreadSafeModule(emit.mod().moveModule(), context)));
         } else {
             auto lock = context.getLock();
 
             Emit emit(*context.getContext(), "jitCalc_child");
-            emit.getSymbolTable() = symTab;
+            emit.addFuncDefs(funcDefs);
             emit.startFunction("func");
             auto *v = emit.emitExpression(*result);
             emit.emitPrint(v);

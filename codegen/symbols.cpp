@@ -8,12 +8,14 @@ SymbolTable::SymbolTable() {
     pushScope();
 }
 
-void SymbolTable::insert(const std::string &symbol, const Object &object) {
+SymbolTable::ID SymbolTable::insert(const std::string &symbol) {
     assert(table.back().find(symbol) == table.back().end());
-    table.back()[symbol] = object;
+    SymbolTable::ID id = supply++;
+    table.back()[symbol] = id;
+    return id;
 }
 
-SymbolTable::Object SymbolTable::look(const std::string &symbol) {
+SymbolTable::ID SymbolTable::look(const std::string &symbol) {
     for (auto it = table.rbegin(); it != table.rend(); it++) {
         if (it->find(symbol) != it->end()) {
             return (*it)[symbol];
