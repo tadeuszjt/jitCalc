@@ -10,24 +10,25 @@ using namespace llvm;
 Emit::Emit(LLVMContext &context, const std::string &name)
     : builder(context, name) {
 
-    builder.declareFunction("printf", builder.getInt32Ty(), {builder.ir().getPtrTy()}, true);
-    builder.declareFunction(
+    builder.createFuncDeclaration("printf", builder.getInt32Ty(), {builder.ir().getPtrTy()}, true);
+    builder.createFuncDeclaration(
         "__cxa_allocate_exception",
         builder.ir().getPtrTy(),
         {builder.ir().getInt64Ty()},
         false);
-    builder.declareFunction(
+    builder.createFuncDeclaration(
         "__cxa_throw",
         builder.ir().getVoidTy(),
         {builder.ir().getPtrTy(), builder.ir().getPtrTy(), builder.ir().getPtrTy()},
         false);
+    builder.createGlobalDeclaration("_ZTIi", builder.ir().getPtrTy());
 }
 
 
 void Emit::emitFuncExtern(const std::string &name, size_t numArgs) {
     objTable[symTab.insert(name)] = ObjFunc{numArgs};
     std::vector<Type*> argTypes(numArgs, builder.ir().getInt32Ty());
-    builder.createExtern(name, argTypes, builder.ir().getInt32Ty());
+    builder.createFuncDeclaration(name.c_str(), builder.ir().getInt32Ty(), argTypes, false);
 }
 
 
@@ -139,9 +140,9 @@ void Emit::emitFuncDef(const ast::FnDef& fnDef) {
     funcDefs.push_back(std::make_pair<std::string, int>(std::string(fnDef.name->ident), fnDef.args->size()));
 
     std::vector<Type*> argTypes(fnDef.args->size(), builder.ir().getInt32Ty());
-    BasicBlock *entry = builder.createFunction(
-        fnDef.name->ident, argTypes, builder.ir().getInt32Ty());
-    builder.setCurrentFunction(fnDef.name->ident);
+    BasicBlock *entry = builder.createFunc(
+        fnDef.name->ident.c_str(), argTypes, builder.ir().getInt32Ty());
+    builder.setCurrentFunc(fnDef.name->ident);
 
     sealBlock(entry);
 
@@ -167,8 +168,10 @@ Value* Emit::emitInt32(int n) {
 }
 
 void Emit::startFunction(const std::string &name) {
-    builder.createFunction(name, {}, builder.getInt32Ty());
-    builder.setCurrentFunction(name);
+    builder.createFunc(name.c_str(), {}, builder.getInt32Ty());
+    builder.setCurrentFunc(name);
+
+
 }
 
 void Emit::emitReturn(Value *value) {
@@ -214,8 +217,8 @@ Value* Emit::emitExpression(const ast::Node &expr) {
             }
 
             std::vector<Type*> argTypes(num_args, builder.ir().getInt32Ty());
-            builder.createExtern(call->name, argTypes, builder.getInt32Ty());
-            return builder.createCall(call->name, vals);
+            builder.createFuncDeclaration(call->name.c_str(), builder.getInt32Ty(), argTypes, false);
+            return builder.createCall(call->name.c_str(), vals);
         }
     }
     assert(false);
@@ -244,7 +247,14 @@ Value* Emit::emitInfix(const ast::Infix &infix) {
 
         builder.setCurrentBlock(zeroBlk);
 
-        builder.createTrap();
+        // throw exception
+        auto *eh = builder.createCall("__cxa_allocate_exception", {builder.ir().getInt64(4)});
+        builder.ir().CreateStore(builder.ir().getInt32(1), eh);
+        builder.createCall(
+            "__cxa_throw",
+            {eh, builder.getGlobalVariable("_ZTIi"),
+            builder.getNullptr()}
+        );
         builder.ir().CreateUnreachable();
 
         builder.setCurrentBlock(okayBlk);

@@ -86,6 +86,7 @@ int main(int argc, char **argv) {
             auto *v = emit.emitExpression(*result);
             emit.emitPrint(v);
             emit.emitReturnNoBlock(emit.emitInt32(0));
+
             emit.mod().printModule();
             emit.mod().verifyModule();
             emit.mod().optimiseModule();

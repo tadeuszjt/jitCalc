@@ -34,7 +34,7 @@ void ModuleBuilder::optimiseModule() {
 }
 
 
-void ModuleBuilder::declareFunction(
+void ModuleBuilder::createFuncDeclaration(
     const char *name,
     Type* returnType,
     const std::vector<Type*> &argTypes,
@@ -47,8 +47,22 @@ void ModuleBuilder::declareFunction(
         irModule.get());
 }
 
+void ModuleBuilder::createGlobalDeclaration(const char* name, llvm::Type* type) {
+    auto *globalVar = new GlobalVariable(
+        *irModule,
+        type,
+        false,
+        GlobalValue::ExternalLinkage,
+        nullptr,
+        name);
+    assert(globalVar != nullptr);
+}
 
-Value* ModuleBuilder::createCall(const std::string &name, const std::vector<Value*> &args) {
+llvm::GlobalVariable* ModuleBuilder::getGlobalVariable(const char* name) {
+    return irModule->getGlobalVariable(name);
+}
+
+Value* ModuleBuilder::createCall(const char *name, const std::vector<Value*> &args) {
     return irBuilder.CreateCall(irModule->getFunction(name), args);
 }
 
@@ -93,16 +107,8 @@ Argument *ModuleBuilder::getCurrentFuncArg(size_t argIndex) {
     assert(false);
 }
 
-void ModuleBuilder::createExtern(const std::string &name,
-                                 const std::vector<Type*> &argTypes,
-                                 Type *returnType) {
-    FunctionType *fnType = FunctionType::get(returnType, argTypes, false);
-    assert(fnType != nullptr);
-    Function *fn = Function::Create(fnType, Function::ExternalLinkage, name, irModule.get());
-    assert(fn != nullptr);
-}
 
-BasicBlock* ModuleBuilder::createFunction(const std::string &name, const std::vector<Type*> &argTypes, Type *returnType) {
+BasicBlock* ModuleBuilder::createFunc(const char *name, const std::vector<Type*> &argTypes, Type *returnType) {
     FunctionType *fnType = FunctionType::get(returnType, argTypes, false);
     assert(fnType != nullptr);
     Function *fn = Function::Create(fnType, Function::ExternalLinkage, name, irModule.get());
@@ -112,7 +118,7 @@ BasicBlock* ModuleBuilder::createFunction(const std::string &name, const std::ve
     return block;
 }
 
-void ModuleBuilder::setCurrentFunction(const std::string &name) {
+void ModuleBuilder::setCurrentFunc(const std::string &name) {
     Function *fn = irModule->getFunction(name);
     assert(fn != nullptr);
     curFn = fn;
