@@ -9,6 +9,18 @@ using namespace llvm;
 
 Emit::Emit(LLVMContext &context, const std::string &name)
     : builder(context, name) {
+
+    builder.declareFunction("printf", builder.getInt32Ty(), {builder.ir().getPtrTy()}, true);
+    builder.declareFunction(
+        "__cxa_allocate_exception",
+        builder.ir().getPtrTy(),
+        {builder.ir().getInt64Ty()},
+        false);
+    builder.declareFunction(
+        "__cxa_throw",
+        builder.ir().getVoidTy(),
+        {builder.ir().getPtrTy(), builder.ir().getPtrTy(), builder.ir().getPtrTy()},
+        false);
 }
 
 
@@ -218,7 +230,27 @@ Value* Emit::emitInfix(const ast::Infix &infix) {
     case ast::Plus: return builder.ir().CreateAdd(left, right,  "infix");
     case ast::Minus: return builder.ir().CreateSub(left, right,  "infix");
     case ast::Times: return builder.ir().CreateMul(left, right,  "infix");
-    case ast::Divide: return builder.ir().CreateSDiv(left, right, "infix");
+    case ast::Divide: {
+        // throw exception on 0
+        auto *cmp = builder.ir().CreateICmpEQ(right, builder.ir().getInt32(0));
+
+        BasicBlock *zeroBlk = builder.appendNewBlock("div_zero");
+        BasicBlock *okayBlk = builder.appendNewBlock("div_okay");
+
+        sealBlock(zeroBlk);
+        sealBlock(okayBlk);
+
+        builder.ir().CreateCondBr(cmp, zeroBlk, okayBlk);
+
+        builder.setCurrentBlock(zeroBlk);
+
+        builder.createTrap();
+        builder.ir().CreateUnreachable();
+
+        builder.setCurrentBlock(okayBlk);
+
+        return builder.ir().CreateSDiv(left, right, "infix");
+    }
     case ast::LT: {
         auto *cmp = builder.ir().CreateICmpSLT(left, right);
         auto *i32 = builder.ir().CreateZExt(cmp, builder.getInt32Ty());

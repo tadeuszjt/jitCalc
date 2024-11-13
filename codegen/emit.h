@@ -39,7 +39,7 @@ public:
     void addFuncDefs(std::vector<std::pair<std::string, int>> &funcs) {
         for (const auto &pair : funcs) {
             funcDefs.push_back(pair);
-            objTable[symTab.insert(pair.first)] = ObjFunc{.numArgs = pair.second};
+            objTable[symTab.insert(pair.first)] = ObjFunc{.numArgs = (size_t)pair.second};
         }
     }
 

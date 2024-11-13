@@ -10,21 +10,26 @@ class ModuleBuilder {
 public:
     ModuleBuilder(llvm::LLVMContext &context, const std::string &name);
 
-    void createExtern(const std::string &name, const std::vector<llvm::Type*> &argTypes, llvm::Type *returnType);
-    void setCurrentFunction(const std::string &name);
-    llvm::Argument *getCurrentFuncArg(size_t argIndex);
-    llvm::Value* createCall(const std::string &name, const std::vector<llvm::Value*> &args);
+    void              createExtern(const std::string &name, const std::vector<llvm::Type*> &argTypes, llvm::Type *returnType);
+    void              setCurrentFunction(const std::string &name);
+    void              declareFunction(const char *, llvm::Type*, const std::vector<llvm::Type*> &, bool);
+    llvm::Argument*   getCurrentFuncArg(size_t argIndex);
+    llvm::Value*      createCall(const std::string &name, const std::vector<llvm::Value*> &args);
     llvm::BasicBlock* createFunction(const std::string &name, const std::vector<llvm::Type*> &argTypes, llvm::Type *returnType);
+    void              createTrap();
 
     llvm::BasicBlock* appendNewBlock(const std::string &suggestion = "block");
-    void setCurrentBlock(llvm::BasicBlock *);
+    void              setCurrentBlock(llvm::BasicBlock *);
     llvm::BasicBlock* getCurrentBlock();
     llvm::BasicBlock* getEntryBlock();
-
 
     void printModule();
     void optimiseModule();
     void verifyModule();
+
+    llvm::Value* getNullptr() {
+        return llvm::ConstantPointerNull::get(irBuilder.getPtrTy());
+    }
 
     llvm::Type *getInt32Ty() { return irBuilder.getInt32Ty(); }
     llvm::Type *getFloatTy() { return irBuilder.getFloatTy(); }

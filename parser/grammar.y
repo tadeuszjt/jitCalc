@@ -99,7 +99,7 @@ idents1
 
 exprs
     : exprs1 { $$ = $1; }
-    |        { $$ = new List<Ident>(); };
+    |        { $$ = new List<Node>(); };
 exprs1
     : expr            { $$ = new List<Node>($1); }
     | expr ',' exprs1 { cast<List<Node>>($3)->cons($1); $$ = $3; };

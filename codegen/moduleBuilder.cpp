@@ -13,12 +13,6 @@ ModuleBuilder::ModuleBuilder(LLVMContext &context, const std::string &name)
     , irModule(std::make_unique<Module>(name, context))
     , curFn(nullptr)
 {
-    // Declare the printf function
-    Function::Create(
-            FunctionType::get(irBuilder.getInt32Ty(), {irBuilder.getPtrTy()}, true),
-            Function::ExternalLinkage,
-            "printf",
-            irModule.get());
 }
 
 void ModuleBuilder::optimiseModule() {
@@ -39,8 +33,28 @@ void ModuleBuilder::optimiseModule() {
     MPM.run(*irModule, MAM);
 }
 
+
+void ModuleBuilder::declareFunction(
+    const char *name,
+    Type* returnType,
+    const std::vector<Type*> &argTypes,
+    bool isVarg
+) {
+    Function::Create(
+        FunctionType::get(returnType, argTypes, isVarg),
+        Function::ExternalLinkage,
+        name,
+        irModule.get());
+}
+
+
 Value* ModuleBuilder::createCall(const std::string &name, const std::vector<Value*> &args) {
     return irBuilder.CreateCall(irModule->getFunction(name), args);
+}
+
+void ModuleBuilder::createTrap() {
+    Function *trap = Intrinsic::getOrInsertDeclaration(irModule.get(), Intrinsic::trap);
+    irBuilder.CreateCall(trap);
 }
 
 BasicBlock* ModuleBuilder::appendNewBlock(const std::string &suggestion) {
