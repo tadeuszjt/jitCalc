@@ -188,6 +188,61 @@ void Emit::emitReturnNoBlock(Value *value) {
     builder.ir().CreateRet(value);
 }
 
+
+
+Value* Emit::emitCall(const ast::Call &call, bool resume) {
+    auto object = look(call.name);
+    assert(std::holds_alternative<ObjFunc>(object));
+
+    size_t num_args = std::get<ObjFunc>(object).numArgs;
+    assert(call.args->size() == num_args);
+
+    std::vector<Value*> vals;
+    for (auto exprPtr : (*call.args).list) {
+        vals.push_back(emitExpression(*exprPtr));
+    }
+
+    std::vector<Type*> argTypes(num_args, builder.ir().getInt32Ty());
+    builder.createFuncDeclaration(call.name.c_str(), builder.getInt32Ty(), argTypes, false);
+
+    BasicBlock* normalBlk = builder.appendNewBlock("normal");
+    BasicBlock* unwindBlk = builder.appendNewBlock("unwind");
+
+    sealBlock(normalBlk);
+    sealBlock(unwindBlk);
+
+    auto *val = builder.createInvoke(normalBlk, unwindBlk, call.name.c_str(), vals);
+
+    builder.setCurrentBlock(unwindBlk);
+    auto *lp  = builder.ir().CreateLandingPad(builder.getStructType(), 1);
+
+
+    auto *gv = builder.getGlobalVariable("_ZTIi");
+    lp->addClause(gv);
+    
+
+    std::string str = "Exception raised in: " + call.name + "\n";
+
+    Value *fmt = builder.ir().CreateGlobalString(str.c_str(), resume ? "res" : "nores");
+    std::vector<Value*> printfArgs = {fmt};
+    builder.createCall("printf", printfArgs);
+
+
+    emitReturnNoBlock(emitInt32(0));
+    //if (resume) {
+    //    //builder.ir().CreateResume(lp);
+    //    builder.createTrap();
+    //    builder.ir().CreateUnreachable();
+    //} else {
+    //    builder.createTrap();
+    //    builder.ir().CreateUnreachable();
+    //}
+
+    builder.setCurrentBlock(normalBlk);
+
+    return val;
+}
+
 Value* Emit::emitExpression(const ast::Node &expr) {
     if (auto *integer = dyn_cast<ast::Integer>(&expr)) {
         return emitInt32(integer->integer);
@@ -201,6 +256,9 @@ Value* Emit::emitExpression(const ast::Node &expr) {
     if (auto *prefix = dyn_cast<ast::Prefix>(&expr)) {
         return emitPrefix(*prefix);
     }
+    if (auto *call = dyn_cast<ast::Call>(&expr)) {
+        return emitCall(*call, true);
+    }
     if (auto *ident = dyn_cast<ast::Ident>(&expr)) {
         auto object = look(ident->ident);
         if (std::holds_alternative<ObjVar>(object)) {
@@ -208,47 +266,6 @@ Value* Emit::emitExpression(const ast::Node &expr) {
         }
 
         assert(false);
-    }
-    if (auto *call = dyn_cast<ast::Call>(&expr)) {
-        auto object = look(call->name);
-        if (std::holds_alternative<ObjFunc>(object)) {
-
-            size_t num_args = std::get<ObjFunc>(object).numArgs;
-            assert(call->args->size() == num_args);
-
-            std::vector<Value*> vals;
-            for (auto exprPtr : (*call->args).list) {
-                vals.push_back(emitExpression(*exprPtr));
-            }
-
-            std::vector<Type*> argTypes(num_args, builder.ir().getInt32Ty());
-            builder.createFuncDeclaration(call->name.c_str(), builder.getInt32Ty(), argTypes, false);
-
-            BasicBlock* normalBlk = builder.appendNewBlock("normal");
-            BasicBlock* unwindBlk = builder.appendNewBlock("unwind");
-
-            sealBlock(normalBlk);
-            sealBlock(unwindBlk);
-
-            auto *val = builder.createInvoke(normalBlk, unwindBlk, call->name.c_str(), vals);
-
-            builder.setCurrentBlock(unwindBlk);
-            auto *lp  = builder.ir().CreateLandingPad(builder.getStructType(), 1);
-            lp->addClause(builder.getNullptr());
-            
-
-            std::string str = "Exception raised in: " + call->name + "\n";
-
-            Value *fmt = builder.ir().CreateGlobalString(str.c_str());
-            std::vector<Value*> printfArgs = {fmt};
-            builder.createCall("printf", printfArgs);
-
-            builder.ir().CreateResume(lp);
-
-            builder.setCurrentBlock(normalBlk);
-
-            return val;
-        }
     }
     assert(false);
     return nullptr;

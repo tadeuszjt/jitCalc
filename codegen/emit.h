@@ -29,6 +29,7 @@ public:
     llvm::Value* emitInfix(const ast::Infix &);
     llvm::Value* emitPrefix(const ast::Prefix &);
     llvm::Value* emitInt32(int n);
+    llvm::Value* emitCall(const ast::Call&, bool);
     void         emitReturn(llvm::Value *value);
     void         emitReturnNoBlock(llvm::Value *value);
     void         emitFuncExtern(const std::string &name, size_t numArgs);

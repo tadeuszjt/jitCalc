@@ -77,6 +77,25 @@ int main(int argc, char **argv) {
             funcDefs = emit.getFuncDefs();
 
             cantFail(jit->addIRModule(dyLib, orc::ThreadSafeModule(emit.mod().moveModule(), context)));
+        } else if (auto *call = llvm::dyn_cast<ast::Call>(result)) {
+            auto lock = context.getLock();
+            Emit emit(*context.getContext(), "jitCalc_child");
+            emit.addFuncDefs(funcDefs);
+            emit.startFunction("func");
+
+            auto *v = emit.emitCall(*call, false);
+            emit.emitPrint(v);
+            emit.emitReturnNoBlock(emit.emitInt32(0));
+            emit.mod().printModule();
+            emit.mod().verifyModule();
+            emit.mod().optimiseModule();
+
+            auto tracker = dyLib.createResourceTracker();
+            cantFail(jit->addIRModule(tracker, orc::ThreadSafeModule(emit.mod().moveModule(), context)));
+            auto symbol = cantFail(jit->lookup(dyLib, "func"));
+            auto funcPtr = symbol.toPtr<void(*)()>();
+            funcPtr();
+            cantFail(tracker->remove());
         } else {
             auto lock = context.getLock();
 
