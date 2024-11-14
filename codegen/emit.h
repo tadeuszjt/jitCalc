@@ -45,6 +45,7 @@ public:
 
     ModuleBuilder &mod() { return builder; }
 private:
+    llvm::Function *personalityFunc;
     Object look(const std::string &name);
 
     ModuleBuilder builder;

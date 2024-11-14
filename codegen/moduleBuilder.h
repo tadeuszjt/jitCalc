@@ -10,10 +10,11 @@ class ModuleBuilder {
 public:
     ModuleBuilder(llvm::LLVMContext &context, const std::string &name);
 
-    void              createFuncDeclaration(const char *, llvm::Type*, const std::vector<llvm::Type*> &, bool);
+    llvm::Function*   createFuncDeclaration(const char *, llvm::Type*, const std::vector<llvm::Type*> &, bool);
+    llvm::Function*   createFunc(const char *, const std::vector<llvm::Type*> &argTypes, llvm::Type *returnType);
     void              createGlobalDeclaration(const char*, llvm::Type*);
     llvm::Value*      createCall(const char *, const std::vector<llvm::Value*> &args);
-    llvm::BasicBlock* createFunc(const char *, const std::vector<llvm::Type*> &argTypes, llvm::Type *returnType);
+    llvm::Value*      createInvoke(llvm::BasicBlock *, llvm::BasicBlock*, const char *, const std::vector<llvm::Value*> &args);
     void              createTrap();
 
     llvm::GlobalVariable* getGlobalVariable(const char* name);
@@ -29,8 +30,12 @@ public:
     void              optimiseModule();
     void              verifyModule();
 
-    llvm::Value* getNullptr() {
+    llvm::Constant* getNullptr() {
         return llvm::ConstantPointerNull::get(irBuilder.getPtrTy());
+    }
+
+    llvm::Type* getStructType() { 
+        return llvm::StructType::get(irBuilder.getPtrTy(), irBuilder.getInt32Ty());
     }
 
     llvm::Type *getInt32Ty() { return irBuilder.getInt32Ty(); }

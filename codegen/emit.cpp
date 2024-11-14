@@ -22,6 +22,9 @@ Emit::Emit(LLVMContext &context, const std::string &name)
         {builder.ir().getPtrTy(), builder.ir().getPtrTy(), builder.ir().getPtrTy()},
         false);
     builder.createGlobalDeclaration("_ZTIi", builder.ir().getPtrTy());
+
+    auto *fn = builder.createFuncDeclaration("__gxx_personality_v0",  builder.getInt32Ty(), {}, false);
+    personalityFunc = fn;
 }
 
 
@@ -140,10 +143,10 @@ void Emit::emitFuncDef(const ast::FnDef& fnDef) {
     funcDefs.push_back(std::make_pair<std::string, int>(std::string(fnDef.name->ident), fnDef.args->size()));
 
     std::vector<Type*> argTypes(fnDef.args->size(), builder.ir().getInt32Ty());
-    BasicBlock *entry = builder.createFunc(
-        fnDef.name->ident.c_str(), argTypes, builder.ir().getInt32Ty());
+    auto *fn = builder.createFunc(fnDef.name->ident.c_str(), argTypes, builder.ir().getInt32Ty());
+    fn->setPersonalityFn(personalityFunc);
     builder.setCurrentFunc(fnDef.name->ident);
-
+    BasicBlock *entry = builder.getCurrentBlock();
     sealBlock(entry);
 
     symTab.pushScope();
@@ -168,7 +171,8 @@ Value* Emit::emitInt32(int n) {
 }
 
 void Emit::startFunction(const std::string &name) {
-    builder.createFunc(name.c_str(), {}, builder.getInt32Ty());
+    auto *fn = builder.createFunc(name.c_str(), {}, builder.getInt32Ty());
+    fn->setPersonalityFn(personalityFunc);
     builder.setCurrentFunc(name);
 
 
@@ -208,6 +212,7 @@ Value* Emit::emitExpression(const ast::Node &expr) {
     if (auto *call = dyn_cast<ast::Call>(&expr)) {
         auto object = look(call->name);
         if (std::holds_alternative<ObjFunc>(object)) {
+
             size_t num_args = std::get<ObjFunc>(object).numArgs;
             assert(call->args->size() == num_args);
 
@@ -218,7 +223,31 @@ Value* Emit::emitExpression(const ast::Node &expr) {
 
             std::vector<Type*> argTypes(num_args, builder.ir().getInt32Ty());
             builder.createFuncDeclaration(call->name.c_str(), builder.getInt32Ty(), argTypes, false);
-            return builder.createCall(call->name.c_str(), vals);
+
+            BasicBlock* normalBlk = builder.appendNewBlock("normal");
+            BasicBlock* unwindBlk = builder.appendNewBlock("unwind");
+
+            sealBlock(normalBlk);
+            sealBlock(unwindBlk);
+
+            auto *val = builder.createInvoke(normalBlk, unwindBlk, call->name.c_str(), vals);
+
+            builder.setCurrentBlock(unwindBlk);
+            auto *lp  = builder.ir().CreateLandingPad(builder.getStructType(), 1);
+            lp->addClause(builder.getNullptr());
+            
+
+            std::string str = "Exception raised in: " + call->name + "\n";
+
+            Value *fmt = builder.ir().CreateGlobalString(str.c_str());
+            std::vector<Value*> printfArgs = {fmt};
+            builder.createCall("printf", printfArgs);
+
+            builder.ir().CreateResume(lp);
+
+            builder.setCurrentBlock(normalBlk);
+
+            return val;
         }
     }
     assert(false);

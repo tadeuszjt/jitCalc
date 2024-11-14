@@ -34,13 +34,13 @@ void ModuleBuilder::optimiseModule() {
 }
 
 
-void ModuleBuilder::createFuncDeclaration(
+Function* ModuleBuilder::createFuncDeclaration(
     const char *name,
     Type* returnType,
     const std::vector<Type*> &argTypes,
     bool isVarg
 ) {
-    Function::Create(
+    return Function::Create(
         FunctionType::get(returnType, argTypes, isVarg),
         Function::ExternalLinkage,
         name,
@@ -65,6 +65,16 @@ llvm::GlobalVariable* ModuleBuilder::getGlobalVariable(const char* name) {
 Value* ModuleBuilder::createCall(const char *name, const std::vector<Value*> &args) {
     return irBuilder.CreateCall(irModule->getFunction(name), args);
 }
+
+llvm::Value* ModuleBuilder::createInvoke(
+    llvm::BasicBlock *normalDest,
+    llvm::BasicBlock* unwindDest,
+    const char *name,
+    const std::vector<llvm::Value*> &args)
+{
+    return irBuilder.CreateInvoke(irModule->getFunction(name), normalDest, unwindDest, args);
+}
+
 
 void ModuleBuilder::createTrap() {
     Function *trap = Intrinsic::getOrInsertDeclaration(irModule.get(), Intrinsic::trap);
@@ -108,14 +118,14 @@ Argument *ModuleBuilder::getCurrentFuncArg(size_t argIndex) {
 }
 
 
-BasicBlock* ModuleBuilder::createFunc(const char *name, const std::vector<Type*> &argTypes, Type *returnType) {
+Function* ModuleBuilder::createFunc(const char *name, const std::vector<Type*> &argTypes, Type *returnType) {
     FunctionType *fnType = FunctionType::get(returnType, argTypes, false);
     assert(fnType != nullptr);
     Function *fn = Function::Create(fnType, Function::ExternalLinkage, name, irModule.get());
     assert(fn != nullptr);
     BasicBlock *block = BasicBlock::Create(irModule->getContext(), "EntryBlock", fn);
     assert(block != nullptr);
-    return block;
+    return fn;
 }
 
 void ModuleBuilder::setCurrentFunc(const std::string &name) {
