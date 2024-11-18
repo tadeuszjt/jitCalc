@@ -21,6 +21,7 @@ public:
     Emit(llvm::LLVMContext &context, const std::string &name);
 
     void startFunction(const std::string &name);
+    void printf(const char* fmt, std::vector<llvm::Value*> args);
 
     void         emitPrint(llvm::Value *value);
     void         emitStmt(const ast::Node &);
