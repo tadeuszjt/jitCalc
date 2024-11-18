@@ -51,7 +51,7 @@ int main(int argc, char **argv) {
     auto jit = cantFail(orc::LLJITBuilder().create());
     auto &dyLib = cantFail(jit->createJITDylib("jitCalc_dyLib"));
 
-    std::vector<std::pair<std::string, int>> funcDefs;
+    std::vector<std::pair<std::string, ObjFunc>> funcDefs;
 
     for (;;) {
         std::string input = getNextInput();
@@ -84,11 +84,11 @@ int main(int argc, char **argv) {
             emit.startFunction("func");
 
             auto *v = emit.emitCall(*call, false);
-            emit.emitPrint(v);
+            emit.printf("result: %d\n", {v});
             emit.emitReturnNoBlock(emit.emitInt32(0));
-            emit.mod().printModule();
             emit.mod().verifyModule();
             emit.mod().optimiseModule();
+            emit.mod().printModule();
 
             auto tracker = dyLib.createResourceTracker();
             cantFail(jit->addIRModule(tracker, orc::ThreadSafeModule(emit.mod().moveModule(), context)));
@@ -103,12 +103,12 @@ int main(int argc, char **argv) {
             emit.addFuncDefs(funcDefs);
             emit.startFunction("func");
             auto *v = emit.emitExpression(*result);
-            emit.emitPrint(v);
+            emit.printf("result: %d\n", {v});
             emit.emitReturnNoBlock(emit.emitInt32(0));
 
+            emit.mod().optimiseModule();
             emit.mod().printModule();
             emit.mod().verifyModule();
-            emit.mod().optimiseModule();
 
             auto tracker = dyLib.createResourceTracker();
             cantFail(jit->addIRModule(tracker, orc::ThreadSafeModule(emit.mod().moveModule(), context)));

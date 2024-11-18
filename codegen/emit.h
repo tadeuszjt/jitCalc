@@ -23,7 +23,6 @@ public:
     void startFunction(const std::string &name);
     void printf(const char* fmt, std::vector<llvm::Value*> args);
 
-    void         emitPrint(llvm::Value *value);
     void         emitStmt(const ast::Node &);
     void         emitFuncDef(const ast::FnDef &);
     llvm::Value* emitExpression(const ast::Node &);
@@ -35,25 +34,26 @@ public:
     void         emitReturnNoBlock(llvm::Value *value);
     void         emitFuncExtern(const std::string &name, size_t numArgs);
 
-    std::vector<std::pair<std::string, int>>& getFuncDefs() {
+    std::vector<std::pair<std::string, ObjFunc>>& getFuncDefs() {
         return funcDefs;
     }
-    void addFuncDefs(std::vector<std::pair<std::string, int>> &funcs) {
+    void addFuncDefs(std::vector<std::pair<std::string, ObjFunc>> &funcs) {
         for (const auto &pair : funcs) {
             funcDefs.push_back(pair);
-            objTable[symTab.insert(pair.first)] = ObjFunc{.numArgs = (size_t)pair.second};
+            objTable[symTab.insert(pair.first)] = pair.second;
         }
     }
 
     ModuleBuilder &mod() { return builder; }
 private:
-    llvm::Function *personalityFunc;
     Object look(const std::string &name);
+    void define(const std::string &name, Object object);
+    void redefine(const std::string &name, Object object);
 
     ModuleBuilder builder;
     SymbolTable   symTab;
     std::map<SymbolTable::ID, Object> objTable;
-    std::vector<std::pair<std::string, int>> funcDefs;
+    std::vector<std::pair<std::string, ObjFunc>> funcDefs;
 
 
     // AST Numbering algorithm for Phi-node generation

@@ -54,7 +54,7 @@ Emit::Emit(LLVMContext &context, const std::string &name)
 
 
 void Emit::emitFuncExtern(const std::string &name, size_t numArgs) {
-    objTable[symTab.insert(name)] = ObjFunc{numArgs};
+    define(name, ObjFunc{numArgs});
     std::vector<Type*> argTypes(numArgs, builder.ir().getInt32Ty());
     builder.createFuncDeclaration(name.c_str(), builder.ir().getInt32Ty(), argTypes, false);
 }
@@ -70,9 +70,8 @@ void Emit::emitStmt(const ast::Node &stmt) {
 
     } else if (auto *let = dyn_cast<ast::Let>(&stmt)) {
         auto *expr = emitExpression(*let->expr);
-        auto id = symTab.insert(let->name);
-        objTable[id] = ObjVar{};
-        writeVariable(id, builder.getCurrentBlock(), expr);
+        define(let->name, ObjVar{});
+        writeVariable(symTab.look(let->name), builder.getCurrentBlock(), expr);
 
     } else if (auto *set = dyn_cast<ast::Set>(&stmt)) {
         auto *expr = emitExpression(*set->expr);
@@ -134,7 +133,6 @@ void Emit::emitStmt(const ast::Node &stmt) {
         auto *cnd = builder.ir().CreateICmpSLT(idx, val);
 
         builder.ir().CreateCondBr(cnd, bdyBlk, endBlk);
-
         sealBlock(bdyBlk);
 
         builder.setCurrentBlock(bdyBlk);
@@ -145,16 +143,13 @@ void Emit::emitStmt(const ast::Node &stmt) {
         }
         symTab.popScope();
         builder.ir().CreateBr(bdyEndBlk);
-
         sealBlock(bdyEndBlk);
 
         builder.setCurrentBlock(bdyEndBlk);
         builder.ir().CreateBr(forBlk);
-
         sealBlock(forBlk);
 
         builder.setCurrentBlock(endBlk);
-
         sealBlock(endBlk);
 
     } else {
@@ -164,8 +159,12 @@ void Emit::emitStmt(const ast::Node &stmt) {
 
 
 void Emit::emitFuncDef(const ast::FnDef& fnDef) {
-    objTable[symTab.insert(fnDef.name->ident)] = ObjFunc{fnDef.args->size()};
-    funcDefs.push_back(std::make_pair<std::string, int>(std::string(fnDef.name->ident), fnDef.args->size()));
+    ObjFunc obj{fnDef.args->size()};
+    define(fnDef.name->ident, obj);
+    funcDefs.push_back(std::make_pair<std::string, ObjFunc>(
+        std::string(fnDef.name->ident),
+        ObjFunc{fnDef.args->size()})
+    );
 
     std::vector<Type*> argTypes(fnDef.args->size(), builder.ir().getInt32Ty());
     auto *fn = builder.createFunc(fnDef.name->ident.c_str(), argTypes, builder.ir().getInt32Ty());
@@ -177,9 +176,8 @@ void Emit::emitFuncDef(const ast::FnDef& fnDef) {
     symTab.pushScope();
 
     for (int i = 0; i < fnDef.args->size(); i++) {
-        auto id = symTab.insert((*fnDef.args).list[i]->ident);
-        writeVariable(id, entry, builder.getCurrentFuncArg(i));
-        objTable[id] = ObjVar{};
+        define((*fnDef.args).list[i]->ident, ObjVar{});
+        writeVariable(symTab.look((*fnDef.args).list[i]->ident), entry, builder.getCurrentFuncArg(i));
     }
 
     for (ast::Node *stmtPtr : (*fnDef.body).list) {
@@ -405,17 +403,19 @@ Value* Emit::emitPrefix(const ast::Prefix &prefix) {
     return nullptr;
 }
 
-void Emit::emitPrint(Value *value) {
-    std::vector<Value*> printfArgs;
+void Emit::define(const std::string &name, Object object) {
+    assert(not symTab.isDefined(name));
 
-    if (value->getType() == builder.ir().getInt32Ty()) {
-        Value *format = builder.ir().CreateGlobalString("%d\n");
-        printfArgs = {format, value};
-    } else {
-        assert(false);
-    }
+    auto id = symTab.insert(name);
+    assert(objTable.find(id) == objTable.end());
+    objTable[id] = object;
+}
 
-    builder.createCall("printf", printfArgs);
+void Emit::redefine(const std::string &name, Object object) {
+    assert(symTab.isDefined(name));
+    auto id = symTab.look(name);
+    assert(objTable.find(id) != objTable.end());
+    objTable[id] = object;
 }
 
 Object Emit::look(const std::string &name) {

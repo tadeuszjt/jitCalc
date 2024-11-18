@@ -15,6 +15,7 @@ public:
     SymbolTable();
     ID insert(const std::string &symbol);
     ID look(const std::string &symbol);
+    bool isDefined(const std::string &symbol);
     void pushScope();
     void popScope();
 
