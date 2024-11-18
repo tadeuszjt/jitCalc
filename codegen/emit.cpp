@@ -159,12 +159,7 @@ void Emit::emitStmt(const ast::Node &stmt) {
 
 
 void Emit::emitFuncDef(const ast::FnDef& fnDef) {
-    ObjFunc obj{fnDef.args->size()};
-    define(fnDef.name->ident, obj);
-    funcDefs.push_back(std::make_pair<std::string, ObjFunc>(
-        std::string(fnDef.name->ident),
-        ObjFunc{fnDef.args->size()})
-    );
+    define(fnDef.name->ident, ObjFunc{fnDef.args->size()});
 
     std::vector<Type*> argTypes(fnDef.args->size(), builder.ir().getInt32Ty());
     auto *fn = builder.createFunc(fnDef.name->ident.c_str(), argTypes, builder.ir().getInt32Ty());

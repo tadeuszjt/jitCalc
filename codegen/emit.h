@@ -10,6 +10,7 @@
 
 struct ObjFunc {
     size_t numArgs;
+    bool   hasException;
 };
 
 struct ObjVar {
@@ -34,26 +35,42 @@ public:
     void         emitReturnNoBlock(llvm::Value *value);
     void         emitFuncExtern(const std::string &name, size_t numArgs);
 
-    std::vector<std::pair<std::string, ObjFunc>>& getFuncDefs() {
+    std::vector<std::pair<std::string, ObjFunc>> getFuncDefs() {
+        std::vector<std::pair<std::string, ObjFunc>> funcDefs;
+
+        auto &map = symTab.getScope(0);
+        for (auto &pair : map) {
+            auto object = objTable[pair.second];
+            if (std::holds_alternative<ObjFunc>(object)) {
+                auto fn = std::get<ObjFunc>(object);
+                funcDefs.push_back(std::make_pair<std::string, ObjFunc>(
+                    std::string(pair.first),
+                    ObjFunc{fn.numArgs, fn.hasException}
+                ));
+            }
+        }
         return funcDefs;
     }
+
+
+
     void addFuncDefs(std::vector<std::pair<std::string, ObjFunc>> &funcs) {
         for (const auto &pair : funcs) {
-            funcDefs.push_back(pair);
             objTable[symTab.insert(pair.first)] = pair.second;
         }
     }
 
     ModuleBuilder &mod() { return builder; }
 private:
+    ModuleBuilder builder;
+
+    // Symbol table uses IDs and Objects
     Object look(const std::string &name);
     void define(const std::string &name, Object object);
     void redefine(const std::string &name, Object object);
 
-    ModuleBuilder builder;
     SymbolTable   symTab;
     std::map<SymbolTable::ID, Object> objTable;
-    std::vector<std::pair<std::string, ObjFunc>> funcDefs;
 
 
     // AST Numbering algorithm for Phi-node generation

@@ -40,3 +40,7 @@ void SymbolTable::popScope() {
     assert(table.size() > 1);
     table.pop_back();
 }
+
+std::map<std::string, SymbolTable::ID> &SymbolTable::getScope(size_t index) {
+    return table[index];
+}

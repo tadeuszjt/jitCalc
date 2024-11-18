@@ -19,6 +19,8 @@ public:
     void pushScope();
     void popScope();
 
+    std::map<std::string, ID>& getScope(size_t index);
+
 private:
     std::vector<std::map<std::string, ID>> table;
     size_t supply;
