@@ -81,9 +81,9 @@ void ModuleBuilder::createTrap() {
     irBuilder.CreateCall(trap);
 }
 
-BasicBlock* ModuleBuilder::appendNewBlock(const std::string &suggestion) {
+BasicBlock* ModuleBuilder::appendNewBlock(const char*suggestion) {
     assert(curFn != nullptr);
-    return BasicBlock::Create(irBuilder.getContext(), suggestion.c_str(), curFn);
+    return BasicBlock::Create(irBuilder.getContext(), suggestion, curFn);
 }
 
 void ModuleBuilder::setCurrentBlock(BasicBlock *block) {
@@ -96,11 +96,6 @@ llvm::BasicBlock* ModuleBuilder::getCurrentBlock() {
     llvm::BasicBlock *block = irBuilder.GetInsertBlock();
     assert(block != nullptr);
     return block;
-}
-
-llvm::BasicBlock* ModuleBuilder::getEntryBlock() {
-    assert(curFn != nullptr);
-    return &curFn->getEntryBlock();
 }
 
 Argument *ModuleBuilder::getCurrentFuncArg(size_t argIndex) {
@@ -128,7 +123,7 @@ Function* ModuleBuilder::createFunc(const char *name, const std::vector<Type*> &
     return fn;
 }
 
-void ModuleBuilder::setCurrentFunc(const std::string &name) {
+void ModuleBuilder::setCurrentFunc(const char *name) {
     Function *fn = irModule->getFunction(name);
     assert(fn != nullptr);
     curFn = fn;

@@ -19,7 +19,7 @@ void Emit::printf(const char* fmt, std::vector<llvm::Value*> args) {
 Emit::Emit(LLVMContext &context, const std::string &name)
     : builder(context, name) {
 
-    builder.createFuncDeclaration("printf", builder.getInt32Ty(), {builder.ir().getPtrTy()}, true);
+    builder.createFuncDeclaration("printf", builder.ir().getInt32Ty(), {builder.ir().getPtrTy()}, true);
     builder.createFuncDeclaration(
         "__cxa_allocate_exception",
         builder.ir().getPtrTy(),
@@ -41,7 +41,7 @@ Emit::Emit(LLVMContext &context, const std::string &name)
         {builder.ir().getPtrTy()},
         false);
     builder.createFuncDeclaration("__cxa_end_catch", builder.ir().getVoidTy(), {}, false);
-    builder.createFuncDeclaration("__gxx_personality_v0",  builder.getInt32Ty(), {}, false);
+    builder.createFuncDeclaration("__gxx_personality_v0",  builder.ir().getInt32Ty(), {}, false);
     builder.createFuncDeclaration(
         "llvm.eh.typeid.for.p0",
         builder.ir().getInt32Ty(),
@@ -117,7 +117,7 @@ void Emit::emitStmt(const ast::Node &stmt) {
         builder.ir().CreateBr(forBlk);
         builder.setCurrentBlock(forBlk);
 
-        PHINode *idx = builder.ir().CreatePHI(builder.getInt32Ty(), 2);
+        PHINode *idx = builder.ir().CreatePHI(builder.ir().getInt32Ty(), 2);
         idx->addIncoming(builder.ir().getInt32(0), curBlk);
         auto *idx2 = builder.ir().CreateAdd(idx, builder.ir().getInt32(1),  "increment");
         idx->addIncoming(idx2, bdyEndBlk);
@@ -158,7 +158,7 @@ void Emit::emitFuncDef(const ast::FnDef& fnDef) {
     std::vector<Type*> argTypes(fnDef.args->size(), builder.ir().getInt32Ty());
     auto *fn = builder.createFunc(fnDef.name->ident.c_str(), argTypes, builder.ir().getInt32Ty());
     fn->setPersonalityFn(builder.getFunc("__gxx_personality_v0"));
-    builder.setCurrentFunc(fnDef.name->ident);
+    builder.setCurrentFunc(fnDef.name->ident.c_str());
     BasicBlock *entry = builder.getCurrentBlock();
     sealBlock(entry);
 
@@ -183,9 +183,9 @@ Value* Emit::emitInt32(int n) {
 }
 
 void Emit::startFunction(const std::string &name) {
-    auto *fn = builder.createFunc(name.c_str(), {}, builder.getInt32Ty());
+    auto *fn = builder.createFunc(name.c_str(), {}, builder.ir().getInt32Ty());
     fn->setPersonalityFn(builder.getFunc("__gxx_personality_v0"));
-    builder.setCurrentFunc(name);
+    builder.setCurrentFunc(name.c_str());
 }
 
 void Emit::emitReturn(Value *value) {
@@ -214,7 +214,7 @@ Value* Emit::emitCall(const ast::Call &call, bool resume) {
     }
  
     std::vector<Type*> argTypes(objFunc.numArgs, builder.ir().getInt32Ty());
-    builder.createFuncDeclaration(call.name.c_str(), builder.getInt32Ty(), argTypes, false);
+    builder.createFuncDeclaration(call.name.c_str(), builder.ir().getInt32Ty(), argTypes, false);
 
     if (objFunc.hasException) {
         BasicBlock* normalBlk = builder.appendNewBlock("normal");
@@ -251,7 +251,7 @@ Value* Emit::emitCall(const ast::Call &call, bool resume) {
 
         builder.setCurrentBlock(catchBlk);
         auto *payloadPtr = builder.createCall("__cxa_begin_catch", {lpPtr});
-        auto *payload = builder.ir().CreateLoad(builder.getInt32Ty(), payloadPtr, "payload");
+        auto *payload = builder.ir().CreateLoad(builder.ir().getInt32Ty(), payloadPtr, "payload");
         this->printf("caught exception: %d\n", {payload});
         builder.createCall("__cxa_end_catch", {});
         emitReturnNoBlock(emitInt32(0));
@@ -355,17 +355,17 @@ Value* Emit::emitInfix(const ast::Infix &infix) {
     }
     case ast::LT: {
         auto *cmp = builder.ir().CreateICmpSLT(left, right);
-        auto *i32 = builder.ir().CreateZExt(cmp, builder.getInt32Ty());
+        auto *i32 = builder.ir().CreateZExt(cmp, builder.ir().getInt32Ty());
         return i32;
     }
     case ast::GT: {
         auto *cmp = builder.ir().CreateICmpSGT(left, right);
-        auto *i32 = builder.ir().CreateZExt(cmp, builder.getInt32Ty());
+        auto *i32 = builder.ir().CreateZExt(cmp, builder.ir().getInt32Ty());
         return i32;
     }
     case ast::EqEq: {
         auto *cmp = builder.ir().CreateICmpEQ(left, right);
-        auto *i32 = builder.ir().CreateZExt(cmp, builder.getInt32Ty());
+        auto *i32 = builder.ir().CreateZExt(cmp, builder.ir().getInt32Ty());
         return i32;
     }
     default: assert(false); break;
@@ -378,7 +378,7 @@ Value* Emit::emitInfix(const ast::Infix &infix) {
 Value* Emit::emitPrefix(const ast::Prefix &prefix) {
     auto *right = emitExpression(*prefix.right);
 
-    if (right->getType() == builder.getInt32Ty()) {
+    if (right->getType() == builder.ir().getInt32Ty()) {
         if (prefix.op == ast::Minus) {
             return builder.ir().CreateSub(emitInt32(0), right, "prefix");
         }
@@ -464,7 +464,7 @@ PHINode *Emit::newPhi(BasicBlock* block) {
     } else {
         builder.ir().SetInsertPoint(block);
     }
-    auto *phi = builder.ir().CreatePHI(builder.getInt32Ty(), 0, "phi");
+    auto *phi = builder.ir().CreatePHI(builder.ir().getInt32Ty(), 0, "phi");
     assert(phi != nullptr);
     builder.ir().restoreIP(prevInsertionPoint);
     return phi;
