@@ -88,15 +88,19 @@ int yylex(yy::parser::semantic_type *un, yy::parser::location_type *yyloc) {
     return 0;
 }
 
-ast::Node *parse(std::string& text) {
+ast::Node *parse(llvm::MemoryBuffer &buffer) {
     bisonProgramResult = nullptr;
+
+    // todo clean this up
+    std::string text = std::string(buffer.getBuffer());
+
     stream = std::stringstream(text);
     lexer2 = std::make_unique<Lexer2>();
 
-    std::unique_ptr<llvm::MemoryBuffer> buffer = llvm::MemoryBuffer::getMemBuffer(text, "buffer");
-    assert(buffer);
+    std::unique_ptr<llvm::MemoryBuffer> bufferCopy= llvm::MemoryBuffer::getMemBufferCopy(buffer.getBuffer(), "buffer");
+    assert(bufferCopy);
     llvm::SourceMgr sourceMgr;
-    int bufId = sourceMgr.AddNewSourceBuffer(std::move(buffer), llvm::SMLoc());
+    int bufId = sourceMgr.AddNewSourceBuffer(std::move(bufferCopy), llvm::SMLoc());
 
     int errorCount = 0;
     auto stream2 = std::stringstream(text);
