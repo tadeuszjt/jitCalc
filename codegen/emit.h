@@ -33,7 +33,6 @@ public:
     llvm::Value* emitCall(const ast::Call&, bool);
     void         emitReturn(llvm::Value *value);
     void         emitReturnNoBlock(llvm::Value *value);
-    void         emitFuncExtern(const std::string &name, size_t numArgs);
 
     std::vector<std::pair<std::string, ObjFunc>> getFuncDefs() {
         std::vector<std::pair<std::string, ObjFunc>> funcDefs;
@@ -62,6 +61,9 @@ public:
 
     ModuleBuilder &mod() { return builder; }
 private:
+    std::string funcCurrent;
+
+
     ModuleBuilder builder;
 
     // Symbol table uses IDs and Objects

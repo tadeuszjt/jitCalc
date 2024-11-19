@@ -70,6 +70,10 @@ int yylex(yy::parser::semantic_type *un, yy::parser::location_type *yyloc) {
             return '=';
         } else if (token.str == ",") {
             return ',';
+        } else if (token.str == "<") {
+            return '<';
+        } else if (token.str == ">") {
+            return '>';
         } else if (token.str == "==") {
             return yy::parser::token::EqEq;
         }

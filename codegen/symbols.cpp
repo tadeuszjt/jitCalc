@@ -28,7 +28,12 @@ SymbolTable::ID SymbolTable::look(const std::string &symbol) {
 
 
 bool SymbolTable::isDefined(const std::string &symbol) {
-    return table.back().find(symbol) != table.back().end();
+    for (auto it = table.rbegin(); it != table.rend(); it++) {
+        if (it->find(symbol) != it->end()) {
+            return true;
+        }
+    }
+    return false;
 }
 
 void SymbolTable::pushScope() {

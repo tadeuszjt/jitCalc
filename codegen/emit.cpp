@@ -53,13 +53,6 @@ Emit::Emit(LLVMContext &context, const std::string &name)
 }
 
 
-void Emit::emitFuncExtern(const std::string &name, size_t numArgs) {
-    define(name, ObjFunc{numArgs});
-    std::vector<Type*> argTypes(numArgs, builder.ir().getInt32Ty());
-    builder.createFuncDeclaration(name.c_str(), builder.ir().getInt32Ty(), argTypes, false);
-}
-
-
 void Emit::emitStmt(const ast::Node &stmt) {
     if (auto *fnDef = dyn_cast<ast::FnDef>(&stmt)) {
         emitFuncDef(*fnDef);
@@ -159,7 +152,8 @@ void Emit::emitStmt(const ast::Node &stmt) {
 
 
 void Emit::emitFuncDef(const ast::FnDef& fnDef) {
-    define(fnDef.name->ident, ObjFunc{fnDef.args->size()});
+    define(fnDef.name->ident, ObjFunc{fnDef.args->size(), false});
+    funcCurrent = fnDef.name->ident;
 
     std::vector<Type*> argTypes(fnDef.args->size(), builder.ir().getInt32Ty());
     auto *fn = builder.createFunc(fnDef.name->ident.c_str(), argTypes, builder.ir().getInt32Ty());
@@ -192,8 +186,6 @@ void Emit::startFunction(const std::string &name) {
     auto *fn = builder.createFunc(name.c_str(), {}, builder.getInt32Ty());
     fn->setPersonalityFn(builder.getFunc("__gxx_personality_v0"));
     builder.setCurrentFunc(name);
-
-
 }
 
 void Emit::emitReturn(Value *value) {
@@ -212,90 +204,80 @@ Value* Emit::emitCall(const ast::Call &call, bool resume) {
     auto object = look(call.name);
     assert(std::holds_alternative<ObjFunc>(object));
 
-    size_t num_args = std::get<ObjFunc>(object).numArgs;
-    assert(call.args->size() == num_args);
+    auto objFunc = std::get<ObjFunc>(object);
+
+    assert(call.args->size() == objFunc.numArgs);
 
     std::vector<Value*> vals;
     for (auto exprPtr : (*call.args).list) {
         vals.push_back(emitExpression(*exprPtr));
     }
-
-    std::vector<Type*> argTypes(num_args, builder.ir().getInt32Ty());
+ 
+    std::vector<Type*> argTypes(objFunc.numArgs, builder.ir().getInt32Ty());
     builder.createFuncDeclaration(call.name.c_str(), builder.getInt32Ty(), argTypes, false);
 
-    BasicBlock* normalBlk = builder.appendNewBlock("normal");
-    BasicBlock* unwindBlk = builder.appendNewBlock("unwind");
-    BasicBlock* catchBlk  = builder.appendNewBlock("catch");
-    BasicBlock* errBlk    = builder.appendNewBlock("error");
-    BasicBlock* unexpBlk  = builder.appendNewBlock("unexpected");
-    BasicBlock* cleanBlk  = builder.appendNewBlock("cleanup");
+    if (objFunc.hasException) {
+        BasicBlock* normalBlk = builder.appendNewBlock("normal");
+        BasicBlock* unwindBlk = builder.appendNewBlock("unwind");
+        BasicBlock* catchBlk  = builder.appendNewBlock("catch");
+        BasicBlock* errBlk    = builder.appendNewBlock("error");
+        BasicBlock* unexpBlk  = builder.appendNewBlock("unexpected");
+        BasicBlock* cleanBlk  = builder.appendNewBlock("cleanup");
 
-    sealBlock(normalBlk);
-    sealBlock(unwindBlk);
-    sealBlock(catchBlk);
-    sealBlock(errBlk);
-    sealBlock(unexpBlk);
-    sealBlock(cleanBlk);
+        sealBlock(normalBlk);
+        sealBlock(unwindBlk);
+        sealBlock(catchBlk);
+        sealBlock(errBlk);
+        sealBlock(unexpBlk);
+        sealBlock(cleanBlk);
 
-    auto *val = builder.createInvoke(normalBlk, unwindBlk, call.name.c_str(), vals);
+        auto *val = builder.createInvoke(normalBlk, unwindBlk, call.name.c_str(), vals);
 
-    builder.setCurrentBlock(unwindBlk);
-    auto *gv = builder.getGlobalVariable("_ZTIi");
+        builder.setCurrentBlock(unwindBlk);
+        auto *gv = builder.getGlobalVariable("_ZTIi");
 
-    auto *lp  = builder.ir().CreateLandingPad(builder.getStructType(), 1);
-    lp->addClause(ConstantExpr::getBitCast(gv, builder.ir().getPtrTy()));
-    lp->setCleanup(true);
-
-
-    auto *lpPtr = builder.ir().CreateExtractValue(lp, {0});
-    auto *lpSel = builder.ir().CreateExtractValue(lp, {1});
-
-    auto *tid = builder.createCall("llvm.eh.typeid.for.p0", {gv});
-
-    auto *match = builder.ir().CreateICmpEQ(tid, lpSel);
-    builder.ir().CreateCondBr(match, catchBlk, errBlk);
-
-    builder.setCurrentBlock(catchBlk);
-    auto *payloadPtr = builder.createCall("__cxa_begin_catch", {lpPtr});
-    auto *payload = builder.ir().CreateLoad(builder.getInt32Ty(), payloadPtr, "payload");
-    this->printf("caught exception: %d\n", {payload});
-    builder.createCall("__cxa_end_catch", {});
-    emitReturnNoBlock(emitInt32(0));
+        auto *lp  = builder.ir().CreateLandingPad(builder.getStructType(), 1);
+        lp->addClause(ConstantExpr::getBitCast(gv, builder.ir().getPtrTy()));
+        lp->setCleanup(true);
 
 
-    builder.setCurrentBlock(errBlk);
-    auto *selLess = builder.ir().CreateICmpSLT(lpSel, builder.ir().getInt32(0));
-    this->printf("errBlk\n", {});
-    builder.ir().CreateCondBr(selLess, unexpBlk, cleanBlk);
+        auto *lpPtr = builder.ir().CreateExtractValue(lp, {0});
+        auto *lpSel = builder.ir().CreateExtractValue(lp, {1});
+
+        auto *tid = builder.createCall("llvm.eh.typeid.for.p0", {gv});
+
+        auto *match = builder.ir().CreateICmpEQ(tid, lpSel);
+        builder.ir().CreateCondBr(match, catchBlk, errBlk);
+
+        builder.setCurrentBlock(catchBlk);
+        auto *payloadPtr = builder.createCall("__cxa_begin_catch", {lpPtr});
+        auto *payload = builder.ir().CreateLoad(builder.getInt32Ty(), payloadPtr, "payload");
+        this->printf("caught exception: %d\n", {payload});
+        builder.createCall("__cxa_end_catch", {});
+        emitReturnNoBlock(emitInt32(0));
 
 
-    builder.setCurrentBlock(unexpBlk);
-    this->printf("unexpBlk\n", {});
-    builder.createCall("__cxa_call_unexpected", {lpPtr});
-    builder.ir().CreateUnreachable();
+        builder.setCurrentBlock(errBlk);
+        auto *selLess = builder.ir().CreateICmpSLT(lpSel, builder.ir().getInt32(0));
+        this->printf("errBlk\n", {});
+        builder.ir().CreateCondBr(selLess, unexpBlk, cleanBlk);
 
 
-    builder.setCurrentBlock(cleanBlk);
-    this->printf("cleanBlk\n", {});
-    builder.ir().CreateResume(lp);
-
-    builder.setCurrentBlock(normalBlk);
-
-    //std::string str = "Exception raised: " + call.name + " sel match: %d, ptr: %p\n";
-
-    //Value *fmt = builder.ir().CreateGlobalString(str.c_str(), resume ? "res" : "nores");
-    //builder.createCall("printf", {fmt, match, lpPtr});
-
-    //emitReturnNoBlock(emitInt32(0));
-
-    //if (resume) {
-    //    //builder.ir().CreateResume(lp);
-    //    //emitReturnNoBlock(emitInt32(0));
-    //} else {
-    //}
+        builder.setCurrentBlock(unexpBlk);
+        this->printf("unexpBlk\n", {});
+        builder.createCall("__cxa_call_unexpected", {lpPtr});
+        builder.ir().CreateUnreachable();
 
 
-    return val;
+        builder.setCurrentBlock(cleanBlk);
+        this->printf("cleanBlk\n", {});
+        builder.ir().CreateResume(lp);
+
+        builder.setCurrentBlock(normalBlk);
+        return val;
+    } else {
+        return builder.createCall(call.name.c_str(), vals);
+    }
 }
 
 Value* Emit::emitExpression(const ast::Node &expr) {
@@ -335,6 +317,15 @@ Value* Emit::emitInfix(const ast::Infix &infix) {
     case ast::Minus: return builder.ir().CreateSub(left, right,  "infix");
     case ast::Times: return builder.ir().CreateMul(left, right,  "infix");
     case ast::Divide: {
+        // function has exception
+        if (funcCurrent != "") {
+            auto object = look(funcCurrent);
+            assert(std::holds_alternative<ObjFunc>(object));
+            auto objFn = std::get<ObjFunc>(object);
+            redefine(funcCurrent, ObjFunc{objFn.numArgs, true});
+        }
+
+
         // throw exception on 0
         auto *cmp = builder.ir().CreateICmpEQ(right, builder.ir().getInt32(0));
 
