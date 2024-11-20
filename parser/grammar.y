@@ -45,8 +45,14 @@ using namespace ast;
 
 %%
 
-program : expr NEWLINE { bisonProgramResult = $1; }
-        | block        { bisonProgramResult = $1; };
+program : topStmts1 { bisonProgramResult = new Program(cast<List<Node>>($1)); };
+
+topStmts1 : topStmt           { $$ = new List<Node>($1); }
+          | topStmt topStmts1 { cast<List<Node>>($2)->cons($1); $$ = $2; };
+
+topStmt : expr NEWLINE { $$ = $1; }
+        | block        { $$ = $1; };
+
 
 expr
     : INTEGER             { $$ = $1; }

@@ -24,6 +24,7 @@ public:
     void startFunction(const std::string &name);
     void printf(const char* fmt, std::vector<llvm::Value*> args);
 
+    void         emitProgram(const ast::Program&);
     void         emitStmt(const ast::Node &);
     void         emitFuncDef(const ast::FnDef &);
     llvm::Value* emitExpression(const ast::Node &);

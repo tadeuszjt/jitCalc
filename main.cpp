@@ -48,6 +48,11 @@ std::unique_ptr<llvm::MemoryBuffer> getNextInput() {
     return llvm::MemoryBuffer::getMemBufferCopy(input);
 }
 
+
+std::unique_ptr<llvm::MemoryBuffer> getFileInput(const char* filename) {
+    return std::move(*llvm::MemoryBuffer::getFile(filename));
+}
+
 int main(int argc, char **argv) {
     // parse command line arguments
     cl::ParseCommandLineOptions(argc, argv, "jitCalc\n");
@@ -75,7 +80,29 @@ int main(int argc, char **argv) {
     std::vector<std::pair<std::string, ObjFunc>> funcDefs;
 
     if (not replMode) {
-        assert(false);
+        auto buffer = getFileInput(inputFile.c_str());
+        assert(buffer);
+
+        auto *result = parse(*buffer);
+        assert(result);
+        auto lock = context.getLock();
+        Emit emit(*context.getContext(), "jitCalc_child");
+
+        auto *prog = llvm::dyn_cast<ast::Program>(result);
+        assert(prog);
+
+        emit.startFunction("func");
+        emit.emitProgram(*prog);
+        emit.mod().verifyModule();
+        emit.mod().optimiseModule();
+        emit.mod().printModule();
+
+        auto tracker = dyLib.createResourceTracker();
+        cantFail(jit->addIRModule(tracker, orc::ThreadSafeModule(emit.mod().moveModule(), context)));
+        auto symbol = cantFail(jit->lookup(dyLib, "func"));
+        auto funcPtr = symbol.toPtr<void(*)()>();
+        funcPtr();
+        cantFail(tracker->remove());
     } else {
         for (;;) {
             auto buffer = getNextInput();

@@ -53,6 +53,21 @@ Emit::Emit(LLVMContext &context, const std::string &name)
 }
 
 
+
+void Emit::emitProgram(const ast::Program &program) {
+    for (ast::Node *stmtPtr : (program.stmts)->list) {
+
+        if (auto *fnDef = dyn_cast<ast::FnDef>(stmtPtr)) {
+            emitFuncDef(*fnDef);
+        } else {
+            auto *v = emitExpression(*stmtPtr);
+            this->printf("result: %d\n", {v});
+        }
+    }
+    emitReturnNoBlock(emitInt32(0));
+}
+
+
 void Emit::emitStmt(const ast::Node &stmt) {
     if (auto *fnDef = dyn_cast<ast::FnDef>(&stmt)) {
         emitFuncDef(*fnDef);
@@ -153,6 +168,7 @@ void Emit::emitStmt(const ast::Node &stmt) {
 
 void Emit::emitFuncDef(const ast::FnDef& fnDef) {
     define(fnDef.name->ident, ObjFunc{fnDef.args->size(), false});
+    auto funcOld = funcCurrent;
     funcCurrent = fnDef.name->ident;
 
     std::vector<Type*> argTypes(fnDef.args->size(), builder.ir().getInt32Ty());
@@ -175,6 +191,12 @@ void Emit::emitFuncDef(const ast::FnDef& fnDef) {
 
     symTab.popScope();
     emitReturnNoBlock(emitInt32(0));
+    funcCurrent = funcOld;
+    if (funcCurrent == "") {
+        builder.setCurrentFunc("func");
+    } else {
+        builder.setCurrentFunc(funcCurrent.c_str());
+    }
 }
 
 
@@ -214,7 +236,10 @@ Value* Emit::emitCall(const ast::Call &call, bool resume) {
     }
  
     std::vector<Type*> argTypes(objFunc.numArgs, builder.ir().getInt32Ty());
-    builder.createFuncDeclaration(call.name.c_str(), builder.ir().getInt32Ty(), argTypes, false);
+
+    if (builder.getFunc(call.name.c_str()) == nullptr) {
+        builder.createFuncDeclaration(call.name.c_str(), builder.ir().getInt32Ty(), argTypes, false);
+    }
 
     if (objFunc.hasException) {
         BasicBlock* normalBlk = builder.appendNewBlock("normal");
