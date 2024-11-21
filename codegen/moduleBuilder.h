@@ -1,16 +1,22 @@
 #pragma once
 
 #include <map>
+#include <filesystem>
 
 #include "ast.h"
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
+#include <llvm/IR/DIBuilder.h>
 
 class ModuleBuilder {
 public:
-    ModuleBuilder(llvm::LLVMContext &context, const std::string &name);
+    ModuleBuilder(
+        llvm::LLVMContext &context,
+        const std::string &name,
+        const std::filesystem::path &filePath = "jitCalc"
+    );
 
     llvm::Function*       createFuncDeclaration(const std::string&, llvm::Type*, const std::vector<llvm::Type*> &, bool);
     llvm::Function*       createFunc(const std::string &, const std::vector<llvm::Type*> &argTypes, llvm::Type *returnType);
@@ -30,6 +36,9 @@ public:
     void              printModule();
     void              optimiseModule();
     void              verifyModule();
+    void              finaliseDebug() {
+        diBuilder.finalize();
+    }
 
     llvm::Constant* getNullptr() {
         return llvm::ConstantPointerNull::get(irBuilder.getPtrTy());
@@ -43,11 +52,17 @@ private:
     // map stores function data
     struct FuncDef { 
         llvm::Function *fnPtr;
+        llvm::DISubprogram *diFunc;
     };
     std::map<std::string, FuncDef> funcDefs;
-    FuncDef                        *funcDefCurrent;
-
+    std::string                    funcDefCurrent;
 
     llvm::IRBuilder<>             irBuilder;
     std::unique_ptr<llvm::Module> irModule;
+
+    // debug structures
+    llvm::DIBuilder               diBuilder;
+    llvm::DIFile                  *diFile;
+    llvm::DICompileUnit           *diCompileUnit;
+    llvm::DIBasicType             *diInt32Ty;
 };

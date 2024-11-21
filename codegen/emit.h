@@ -19,7 +19,11 @@ struct ObjVar {
 using Object = std::variant<ObjFunc, ObjVar>;
 class Emit {
 public:
-    Emit(llvm::LLVMContext &context, const std::string &name);
+    Emit(
+        llvm::LLVMContext &context,
+        const std::string &name,
+        const std::filesystem::path &debugFilePath = "jitCalc"
+    );
 
     void startFunction(const std::string &name);
     void printf(const char* fmt, std::vector<llvm::Value*> args);
@@ -61,6 +65,7 @@ public:
 
     ModuleBuilder &mod() { return builder; }
 private:
+    std::string startFunctionName;
     std::string funcCurrent;
     ModuleBuilder builder;
 

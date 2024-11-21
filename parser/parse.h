@@ -6,4 +6,4 @@
 #include <llvm/Support/MemoryBuffer.h>
 
 // provides a simple interface for the bison parser and custom lexer.
-ast::Node* parse(llvm::MemoryBuffer &);
+ast::Program* parse(llvm::MemoryBuffer &);

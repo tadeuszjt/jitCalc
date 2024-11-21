@@ -12,7 +12,7 @@
 
 static std::unique_ptr<Lexer2> lexer2;
 static std::stringstream      stream;
-extern ast::Node              *bisonProgramResult;
+extern ast::Program           *bisonProgramResult;
 
 int yylex(yy::parser::semantic_type *un, yy::parser::location_type *yyloc) {
     auto token = lexer2->nextToken(stream);
@@ -88,7 +88,7 @@ int yylex(yy::parser::semantic_type *un, yy::parser::location_type *yyloc) {
     return 0;
 }
 
-ast::Node *parse(llvm::MemoryBuffer &buffer) {
+ast::Program *parse(llvm::MemoryBuffer &buffer) {
     bisonProgramResult = nullptr;
 
     // todo clean this up

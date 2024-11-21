@@ -16,8 +16,8 @@ void Emit::printf(const char* fmt, std::vector<llvm::Value*> args) {
 }
 
 
-Emit::Emit(LLVMContext &context, const std::string &name)
-    : builder(context, name) {
+Emit::Emit(LLVMContext &context, const std::string &name, const std::filesystem::path &debugFilePath)
+    : builder(context, name, debugFilePath) {
 
     builder.createFuncDeclaration("printf", builder.ir().getInt32Ty(), {builder.ir().getPtrTy()}, true);
     builder.createFuncDeclaration(
@@ -193,7 +193,7 @@ void Emit::emitFuncDef(const ast::FnDef& fnDef) {
     emitReturnNoBlock(emitInt32(0));
     funcCurrent = funcOld;
     if (funcCurrent == "") {
-        builder.setCurrentFunc("func");
+        builder.setCurrentFunc(startFunctionName);
     } else {
         builder.setCurrentFunc(funcCurrent.c_str());
     }
@@ -205,9 +205,11 @@ Value* Emit::emitInt32(int n) {
 }
 
 void Emit::startFunction(const std::string &name) {
+    assert(startFunctionName == "");
     auto *fn = builder.createFunc(name.c_str(), {}, builder.ir().getInt32Ty());
     fn->setPersonalityFn(builder.getFunc("__gxx_personality_v0"));
     builder.setCurrentFunc(name.c_str());
+    startFunctionName = name;
 }
 
 void Emit::emitReturn(Value *value) {

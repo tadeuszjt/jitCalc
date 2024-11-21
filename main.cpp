@@ -81,19 +81,17 @@ int main(int argc, char **argv) {
         auto buffer = std::move(*llvm::MemoryBuffer::getFile(filepath.c_str()));
         assert(buffer);
 
-        auto *result = parse(*buffer);
-        assert(result);
+        auto *prog = parse(*buffer);
         auto lock = context.getLock();
-        Emit emit(*context.getContext(), "jitCalc_child");
-
-        auto *prog = llvm::dyn_cast<ast::Program>(result);
-        assert(prog);
+        Emit emit(*context.getContext(), "jitCalc_child", filepath);
 
         emit.startFunction("func");
         emit.emitProgram(*prog);
+        emit.mod().finaliseDebug();
+        emit.mod().printModule();
+        puts("");
         emit.mod().verifyModule();
         emit.mod().optimiseModule();
-        emit.mod().printModule();
 
         auto tracker = dyLib.createResourceTracker();
         cantFail(jit->addIRModule(tracker, orc::ThreadSafeModule(emit.mod().moveModule(), context)));
@@ -102,14 +100,14 @@ int main(int argc, char **argv) {
         funcPtr();
         cantFail(tracker->remove());
     } else {
-        for (;;) {
+        for (int i = 0;; i++) {
             auto buffer = getNextInput();
             if (buffer->getBuffer() == "q") {
                 break;
             }
 
-            auto *result = parse(*buffer);
-            if (result == nullptr) {
+            auto *prog = parse(*buffer);
+            if (prog == nullptr) {
                 continue;
             }
 
@@ -117,14 +115,9 @@ int main(int argc, char **argv) {
             Emit emit(*context.getContext(), "jitCalc_child");
             emit.addFuncDefs(funcDefs);
 
-            if (auto *fnDef = llvm::dyn_cast<ast::FnDef>(result)) {
-                emit.emitFuncDef(*fnDef);
-            } else {
-                emit.startFunction("func");
-                auto *v = emit.emitExpression(*result);
-                emit.printf("result: %d\n", {v});
-                emit.emitReturnNoBlock(emit.emitInt32(0));
-            }
+            std::string funcName = "func" + std::to_string(i);
+            emit.startFunction(funcName);
+            emit.emitProgram(*prog);
 
             emit.mod().printModule();
             emit.mod().verifyModule();
@@ -132,16 +125,12 @@ int main(int argc, char **argv) {
 
             funcDefs = emit.getFuncDefs();
 
-            if (auto *fnDef = llvm::dyn_cast<ast::FnDef>(result)) {
-                cantFail(jit->addIRModule(dyLib, orc::ThreadSafeModule(emit.mod().moveModule(), context)));
-            } else {
-                auto tracker = dyLib.createResourceTracker();
-                cantFail(jit->addIRModule(tracker, orc::ThreadSafeModule(emit.mod().moveModule(), context)));
-                auto symbol = cantFail(jit->lookup(dyLib, "func"));
-                auto funcPtr = symbol.toPtr<void(*)()>();
-                funcPtr();
-                cantFail(tracker->remove());
-            }
+            auto tracker = dyLib.createResourceTracker();
+            cantFail(jit->addIRModule(tracker, orc::ThreadSafeModule(emit.mod().moveModule(), context)));
+            auto symbol = cantFail(jit->lookup(dyLib, funcName.c_str()));
+            auto funcPtr = symbol.toPtr<void(*)()>();
+            funcPtr();
+            //cantFail(tracker->remove());
         }
     }
 

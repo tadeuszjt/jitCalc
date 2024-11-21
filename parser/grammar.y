@@ -18,7 +18,7 @@
 
 // this function is called for every token, returns token type (INTEGER, '+', '-'...)
 int yylex(yy::parser::semantic_type *, yy::parser::location_type *);
-ast::Node* bisonProgramResult;
+ast::Program* bisonProgramResult;
 
 template <typename A, typename B>
 A* cast(B* ptr) {
