@@ -261,7 +261,8 @@ Value* Emit::emitCall(const ast::Call &call, bool resume) {
         builder.setCurrentBlock(unwindBlk);
         auto *gv = builder.getGlobalVariable("_ZTIi");
 
-        auto *lp  = builder.ir().CreateLandingPad(builder.getStructType(), 1);
+        auto *structType = llvm::StructType::get(builder.ir().getPtrTy(), builder.ir().getInt32Ty());
+        auto *lp  = builder.ir().CreateLandingPad(structType, 1);
         lp->addClause(ConstantExpr::getBitCast(gv, builder.ir().getPtrTy()));
         lp->setCleanup(true);
 

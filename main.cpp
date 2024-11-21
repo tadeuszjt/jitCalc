@@ -4,6 +4,7 @@
 
 #include <iostream>
 #include <cassert>
+#include <filesystem>
 
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
@@ -49,10 +50,6 @@ std::unique_ptr<llvm::MemoryBuffer> getNextInput() {
 }
 
 
-std::unique_ptr<llvm::MemoryBuffer> getFileInput(const char* filename) {
-    return std::move(*llvm::MemoryBuffer::getFile(filename));
-}
-
 int main(int argc, char **argv) {
     // parse command line arguments
     cl::ParseCommandLineOptions(argc, argv, "jitCalc\n");
@@ -80,7 +77,8 @@ int main(int argc, char **argv) {
     std::vector<std::pair<std::string, ObjFunc>> funcDefs;
 
     if (not replMode) {
-        auto buffer = getFileInput(inputFile.c_str());
+        auto filepath = std::filesystem::absolute(std::string(inputFile));
+        auto buffer = std::move(*llvm::MemoryBuffer::getFile(filepath.c_str()));
         assert(buffer);
 
         auto *result = parse(*buffer);

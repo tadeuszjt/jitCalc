@@ -11,7 +11,7 @@ using namespace llvm;
 ModuleBuilder::ModuleBuilder(LLVMContext &context, const std::string &name)
     : irBuilder(context)
     , irModule(std::make_unique<Module>(name, context))
-    , curFn(nullptr)
+    , funcDefCurrent(nullptr)
 {
 }
 
@@ -33,19 +33,6 @@ void ModuleBuilder::optimiseModule() {
     MPM.run(*irModule, MAM);
 }
 
-
-Function* ModuleBuilder::createFuncDeclaration(
-    const char *name,
-    Type* returnType,
-    const std::vector<Type*> &argTypes,
-    bool isVarg
-) {
-    return Function::Create(
-        FunctionType::get(returnType, argTypes, isVarg),
-        Function::ExternalLinkage,
-        name,
-        irModule.get());
-}
 
 void ModuleBuilder::createGlobalDeclaration(const char* name, llvm::Type* type) {
     auto *globalVar = new GlobalVariable(
@@ -82,8 +69,8 @@ void ModuleBuilder::createTrap() {
 }
 
 BasicBlock* ModuleBuilder::appendNewBlock(const char*suggestion) {
-    assert(curFn != nullptr);
-    return BasicBlock::Create(irBuilder.getContext(), suggestion, curFn);
+    assert(nullptr != funcDefCurrent);
+    return BasicBlock::Create(irBuilder.getContext(), suggestion, funcDefCurrent->fnPtr);
 }
 
 void ModuleBuilder::setCurrentBlock(BasicBlock *block) {
@@ -99,11 +86,11 @@ llvm::BasicBlock* ModuleBuilder::getCurrentBlock() {
 }
 
 Argument *ModuleBuilder::getCurrentFuncArg(size_t argIndex) {
-    assert(curFn != nullptr);
-    assert(argIndex < std::distance(curFn->args().begin(), curFn->args().end()));
+    assert(funcDefCurrent != nullptr);
+    assert(argIndex < std::distance(funcDefCurrent->fnPtr->args().begin(), funcDefCurrent->fnPtr->args().end()));
 
     size_t index = 0;
-    for (Argument &arg : curFn->args()) {
+    for (Argument &arg : funcDefCurrent->fnPtr->args()) {
         if (index == argIndex) {
             return &arg;
         }
@@ -112,22 +99,49 @@ Argument *ModuleBuilder::getCurrentFuncArg(size_t argIndex) {
     assert(false);
 }
 
+Function* ModuleBuilder::createFuncDeclaration(
+    const std::string &name,
+    Type* returnType,
+    const std::vector<Type*> &argTypes,
+    bool isVarg
+) {
+    assert(funcDefs.find(name) == funcDefs.end());
+    Function *fn = Function::Create(
+        FunctionType::get(returnType, argTypes, isVarg),
+        Function::ExternalLinkage,
+        name,
+        irModule.get()
+    );
+    assert(nullptr != fn);
+    funcDefs[name].fnPtr = fn;
+    return fn;
+}
 
-Function* ModuleBuilder::createFunc(const char *name, const std::vector<Type*> &argTypes, Type *returnType) {
-    FunctionType *fnType = FunctionType::get(returnType, argTypes, false);
-    assert(fnType != nullptr);
-    Function *fn = Function::Create(fnType, Function::ExternalLinkage, name, irModule.get());
-    assert(fn != nullptr);
+
+Function* ModuleBuilder::createFunc(
+    const std::string &name,
+    const std::vector<Type*> &argTypes,
+    Type *returnType
+) {
+    auto *fn = createFuncDeclaration(name, returnType, argTypes, false);
     BasicBlock *block = BasicBlock::Create(irModule->getContext(), "EntryBlock", fn);
     assert(block != nullptr);
     return fn;
 }
 
-void ModuleBuilder::setCurrentFunc(const char *name) {
-    Function *fn = irModule->getFunction(name);
-    assert(fn != nullptr);
-    curFn = fn;
-    irBuilder.SetInsertPoint(&fn->back());
+void ModuleBuilder::setCurrentFunc(const std::string &name) {
+    assert(funcDefs.find(name) != funcDefs.end());
+    funcDefCurrent = &funcDefs[name];
+    irBuilder.SetInsertPoint(&funcDefCurrent->fnPtr->back());
+}
+
+Function* ModuleBuilder::getFunc(const std::string &name) {
+    if (funcDefs.find(name) == funcDefs.end()) {
+        errs() << "function: " << name << " not created in module\n";
+        assert(false);
+    }
+
+    return funcDefs[name].fnPtr;
 }
 
 void ModuleBuilder::printModule() {

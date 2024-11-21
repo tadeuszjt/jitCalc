@@ -53,7 +53,6 @@ public:
     }
 
 
-
     void addFuncDefs(std::vector<std::pair<std::string, ObjFunc>> &funcs) {
         for (const auto &pair : funcs) {
             objTable[symTab.insert(pair.first)] = pair.second;
@@ -63,8 +62,6 @@ public:
     ModuleBuilder &mod() { return builder; }
 private:
     std::string funcCurrent;
-
-
     ModuleBuilder builder;
 
     // Symbol table uses IDs and Objects
