@@ -15,16 +15,16 @@ const std::vector keywords = {"fn", "if", "else", "return", "let", "for"};
 const std::string symbols = "+-*/()><=,";
 const std::vector<std::string> doubleSymbols = {"=="};
 
+class TextPos {
+public:
+    TextPos(size_t line, size_t column, size_t index) : line(line), column(column) {}
+    size_t line;
+    size_t column;
+    size_t index;
+};
+
 
 class Lexer2 {
-    struct TextPos {
-        TextPos() : line(0), column(0), index(0) {}
-        void operator=(TextPos a) { line = a.line; column = a.column; index = a.index; }
-        size_t line;
-        size_t column;
-        size_t index;
-    };
-
     struct TextChar {
         TextChar(char c, TextPos p) : c(c), pos(p) {}
         char c;
@@ -35,6 +35,11 @@ class Lexer2 {
 public:
     struct Token2 {
         enum TokenType { Integer, Ident, Keyword, Symbol, Newline, Indent, Dedent, Eof, Invalid };
+
+        Token2(TokenType type, TextPos begin, TextPos end, const std::string &str)
+            : type(type), begin(begin), end(end), str(str) {}
+
+
         TokenType type;
         TextPos begin;
         TextPos end;

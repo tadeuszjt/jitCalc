@@ -6,13 +6,13 @@
 
 using namespace llvm;
 
-void Emit::printf(const char* fmt, std::vector<llvm::Value*> args) {
+void Emit::emitPrintf(const char* fmt, std::vector<llvm::Value*> args) {
     llvm::Value *ft = builder.ir().CreateGlobalString(fmt, "fmt");
     std::vector args2 = {ft};
     for (auto arg : args) {
         args2.push_back(arg);
     }
-    builder.createCall("printf", args2);
+    builder.createCall(0, 0, "printf", args2);
 }
 
 
@@ -61,7 +61,7 @@ void Emit::emitProgram(const ast::Program &program) {
             emitFuncDef(*fnDef);
         } else {
             auto *v = emitExpression(*stmtPtr);
-            this->printf("result: %d\n", {v});
+            this->emitPrintf("result: %d\n", {v});
         }
     }
     emitReturnNoBlock(emitInt32(0));
@@ -73,6 +73,7 @@ void Emit::emitStmt(const ast::Node &stmt) {
         emitFuncDef(*fnDef);
 
     } else if (auto *ret = dyn_cast<ast::Return>(&stmt)) {
+        printf("Returning at line: %d, col: %d\n", ret->getPos().line, ret->getPos().column);
         auto *e = emitExpression(*ret->expr);
         emitReturn(e);
 
@@ -258,7 +259,8 @@ Value* Emit::emitCall(const ast::Call &call, bool resume) {
         sealBlock(unexpBlk);
         sealBlock(cleanBlk);
 
-        auto *val = builder.createInvoke(normalBlk, unwindBlk, call.name.c_str(), vals);
+        auto *val = builder.createInvoke(
+            call.getPos().line, call.getPos().column, normalBlk, unwindBlk, call.name.c_str(), vals);
 
         builder.setCurrentBlock(unwindBlk);
         auto *gv = builder.getGlobalVariable("_ZTIi");
@@ -272,39 +274,43 @@ Value* Emit::emitCall(const ast::Call &call, bool resume) {
         auto *lpPtr = builder.ir().CreateExtractValue(lp, {0});
         auto *lpSel = builder.ir().CreateExtractValue(lp, {1});
 
-        auto *tid = builder.createCall("llvm.eh.typeid.for.p0", {gv});
+        auto *tid = builder.createCall(
+            call.getPos().line, call.getPos().column, "llvm.eh.typeid.for.p0", {gv});
 
         auto *match = builder.ir().CreateICmpEQ(tid, lpSel);
         builder.ir().CreateCondBr(match, catchBlk, errBlk);
 
         builder.setCurrentBlock(catchBlk);
-        auto *payloadPtr = builder.createCall("__cxa_begin_catch", {lpPtr});
+        auto *payloadPtr = builder.createCall(
+            call.getPos().line, call.getPos().column, "__cxa_begin_catch", {lpPtr});
         auto *payload = builder.ir().CreateLoad(builder.ir().getInt32Ty(), payloadPtr, "payload");
-        this->printf("caught exception: %d\n", {payload});
-        builder.createCall("__cxa_end_catch", {});
+        this->emitPrintf("caught exception: %d\n", {payload});
+        builder.createCall(
+            call.getPos().line, call.getPos().column, "__cxa_end_catch", {});
         emitReturnNoBlock(emitInt32(0));
 
 
         builder.setCurrentBlock(errBlk);
         auto *selLess = builder.ir().CreateICmpSLT(lpSel, builder.ir().getInt32(0));
-        this->printf("errBlk\n", {});
+        this->emitPrintf("errBlk\n", {});
         builder.ir().CreateCondBr(selLess, unexpBlk, cleanBlk);
 
 
         builder.setCurrentBlock(unexpBlk);
-        this->printf("unexpBlk\n", {});
-        builder.createCall("__cxa_call_unexpected", {lpPtr});
+        this->emitPrintf("unexpBlk\n", {});
+        builder.createCall(
+            call.getPos().line, call.getPos().column, "__cxa_call_unexpected", {lpPtr});
         builder.ir().CreateUnreachable();
 
 
         builder.setCurrentBlock(cleanBlk);
-        this->printf("cleanBlk\n", {});
+        this->emitPrintf("cleanBlk\n", {});
         builder.ir().CreateResume(lp);
 
         builder.setCurrentBlock(normalBlk);
         return val;
     } else {
-        return builder.createCall(call.name.c_str(), vals);
+        return builder.createCall(call.getPos().line, call.getPos().column, call.name.c_str(), vals);
     }
 }
 
@@ -368,9 +374,15 @@ Value* Emit::emitInfix(const ast::Infix &infix) {
         builder.setCurrentBlock(zeroBlk);
 
         // throw exception
-        auto *eh = builder.createCall("__cxa_allocate_exception", {builder.ir().getInt64(4)});
+        auto *eh = builder.createCall(
+            infix.getPos().line,
+            infix.getPos().column,
+            "__cxa_allocate_exception",
+            {builder.ir().getInt64(4)}
+        );
         builder.ir().CreateStore(builder.ir().getInt32(123), eh);
         builder.createCall(
+            infix.getPos().line, infix.getPos().column,
             "__cxa_throw",
             {eh, builder.getGlobalVariable("_ZTIi"),
             builder.getNullptr()}

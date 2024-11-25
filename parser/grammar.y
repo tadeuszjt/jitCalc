@@ -5,6 +5,7 @@
 
 %{
 #include "ast.h"
+#include "lexer.h"
 #include "grammar.tab.hh"
 #include <string>
 #include <iostream>
@@ -27,6 +28,10 @@ A* cast(B* ptr) {
     return casted;
 }
 
+TextPos textPos(const yy::parser::location_type &loc) {
+    return TextPos(loc.begin.line, loc.begin.column, 0);
+}
+
 using namespace std;
 using namespace ast;
 %}
@@ -45,9 +50,9 @@ using namespace ast;
 
 %%
 
-program : topStmts1 { bisonProgramResult = new Program(cast<List<Node>>($1)); };
+program : topStmts1 { bisonProgramResult = new Program(textPos(@1), cast<List<Node>>($1)); };
 
-topStmts1 : topStmt           { $$ = new List<Node>($1); }
+topStmts1 : topStmt           { $$ = new List<Node>(textPos(@1), $1); }
           | topStmt topStmts1 { cast<List<Node>>($2)->cons($1); $$ = $2; };
 
 topStmt : expr NEWLINE { $$ = $1; }
@@ -55,59 +60,57 @@ topStmt : expr NEWLINE { $$ = $1; }
 
 
 expr
-    : INTEGER             { $$ = $1; }
-    | FLOATING            { $$ = $1; }
-    | '(' expr ')'        { $$ = $2; }
-    | ident               { $$ = $1; }
-    | ident '(' exprs ')' { $$ = new Call(cast<Ident>($1)->ident, cast<List<Node>>($3)); }
-    | '-' expr            { $$ = new Prefix(Minus, ($2)); }
-    | expr '+' expr       { $$ = new Infix($1, Plus, $3); }
-    | expr '-' expr       { $$ = new Infix($1, Minus, $3); }
-    | expr '*' expr       { $$ = new Infix($1, Times, $3); }
-    | expr '/' expr       { $$ = new Infix($1, Divide, $3); }
-    | expr '<' expr       { $$ = new Infix($1, LT, $3); }
-    | expr '>' expr       { $$ = new Infix($1, GT, $3); }
-    | expr EqEq expr      { $$ = new Infix($1, EqEq, $3); };
+    : INTEGER              { $$ = $1; }
+    | FLOATING             { $$ = $1; }
+    | '(' expr ')'         { $$ = $2; }
+    | ident                { $$ = $1; }
+    | ident '(' exprs1 ')' { $$ = new Call(textPos(@2), cast<Ident>($1)->ident, cast<List<Node>>($3)); }
+    | ident '(' ')'        { $$ = new Call(textPos(@2), cast<Ident>($1)->ident, new List<Node>(textPos(@2))); }
+    | '-' expr             { $$ = new Prefix(textPos(@1), Minus, ($2)); }
+    | expr '+' expr        { $$ = new Infix(textPos(@2), $1, Plus, $3); }
+    | expr '-' expr        { $$ = new Infix(textPos(@2), $1, Minus, $3); }
+    | expr '*' expr        { $$ = new Infix(textPos(@2), $1, Times, $3); }
+    | expr '/' expr        { $$ = new Infix(textPos(@2), $1, Divide, $3); }
+    | expr '<' expr        { $$ = new Infix(textPos(@2), $1, LT, $3); }
+    | expr '>' expr        { $$ = new Infix(textPos(@2), $1, GT, $3); }
+    | expr EqEq expr       { $$ = new Infix(textPos(@2), $1, EqEq, $3); };
 
     // error ast node can go here
     //| error               { llvm::errs() << "syntax error in expr\n"; yyclearin; };
 
 
 line
-    : Return expr        { $$ = new Return($2); }
-    | ident '=' expr     { $$ = new Set(cast<Ident>($1)->ident, $3); }
-    | Let ident '=' expr { $$ = new Let(cast<Ident>($2)->ident, $4); };
+    : Return expr        { $$ = new Return(textPos(@1), $2); }
+    | ident '=' expr     { $$ = new Set(textPos(@2), cast<Ident>($1)->ident, $3); }
+    | Let ident '=' expr { $$ = new Let(textPos(@1), cast<Ident>($2)->ident, $4); };
 
 block
     : fn ident '(' idents ')' INDENT stmts1 DEDENT
-        { $$ = new FnDef(cast<Ident>($2), cast<List<Ident>>($4), cast<List<Node>>($7)); }
+        { $$ = new FnDef(textPos(@1), cast<Ident>($2), cast<List<Ident>>($4), cast<List<Node>>($7)); }
     | If expr INDENT stmts1 DEDENT
-        { $$ = new If($2, cast<List<Node>>($4), new List<Node>()); }
+        { $$ = new If(textPos(@1), $2, cast<List<Node>>($4), new List<Node>(textPos(@1))); }
     | If expr INDENT stmts1 DEDENT Else INDENT stmts1 DEDENT
-        { $$ = new If($2, cast<List<Node>>($4), cast<List<Node>>($8)); }
+        { $$ = new If(textPos(@1), $2, cast<List<Node>>($4), cast<List<Node>>($8)); }
     | For expr INDENT stmts1 DEDENT 
-        { $$ = new For($2, cast<List<Node>>($4)); };
+        { $$ = new For(textPos(@1), $2, cast<List<Node>>($4)); };
 
 stmts1
-    : line NEWLINE        { $$ = new List<Node>($1); }
-    | block               { $$ = new List<Node>($1); }
+    : line NEWLINE        { $$ = new List<Node>(textPos(@1), $1); }
+    | block               { $$ = new List<Node>(textPos(@1), $1); }
     | line NEWLINE stmts1 { cast<List<Node>>($3)->cons($1); $$ = $3; }
     | block        stmts1 { cast<List<Node>>($2)->cons($1); $$ = $2; };
 
 
 idents
     : idents1 { $$ = $1; }
-    |         { $$ = new List<Ident>(); };
+    |         { $$ = new List<Ident>(TextPos(0, 0, 0)); };
 idents1
-    : ident             { $$ = new List<Ident>(cast<Ident>($1)); }
+    : ident             { $$ = new List<Ident>(textPos(@1), cast<Ident>($1)); }
     | ident ',' idents1 { cast<List<Ident>>($3)->cons(cast<Ident>($1)); $$ = $3; };
 
 
-exprs
-    : exprs1 { $$ = $1; }
-    |        { $$ = new List<Node>(); };
 exprs1
-    : expr            { $$ = new List<Node>($1); }
+    : expr            { $$ = new List<Node>(textPos(@1), $1); }
     | expr ',' exprs1 { cast<List<Node>>($3)->cons($1); $$ = $3; };
     
 %%

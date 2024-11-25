@@ -76,14 +76,13 @@ llvm::GlobalVariable* ModuleBuilder::getGlobalVariable(const char* name) {
     return irModule->getGlobalVariable(name);
 }
 
-Value* ModuleBuilder::createCall(const char *name, const std::vector<Value*> &args) {
+Value* ModuleBuilder::createCall(size_t line, size_t column, const char *name, const std::vector<Value*> &args) {
     assert(funcDefs.find(name) != funcDefs.end());
     auto *call = irBuilder.CreateCall(irModule->getFunction(name), args);
 
-    std::string curFn = funcDefCurrent;
-
-    if (nullptr != funcDefs[curFn].diFunc) {
-        auto *diLoc = llvm::DILocation::get(irModule->getContext(), 0, 0, funcDefs[curFn].diFunc);
+    if (nullptr != funcDefs[funcDefCurrent].diFunc) {
+        auto *diLoc = llvm::DILocation::get(
+            irModule->getContext(), line, column, funcDefs[funcDefCurrent].diFunc);
         call->setDebugLoc(diLoc);
     }
 
@@ -91,12 +90,22 @@ Value* ModuleBuilder::createCall(const char *name, const std::vector<Value*> &ar
 }
 
 llvm::Value* ModuleBuilder::createInvoke(
+    size_t line,
+    size_t column,
     llvm::BasicBlock *normalDest,
     llvm::BasicBlock* unwindDest,
     const char *name,
     const std::vector<llvm::Value*> &args)
 {
-    return irBuilder.CreateInvoke(irModule->getFunction(name), normalDest, unwindDest, args);
+    auto *invoke = irBuilder.CreateInvoke(irModule->getFunction(name), normalDest, unwindDest, args);
+
+    if (nullptr != funcDefs[funcDefCurrent].diFunc) {
+        auto *diLoc = llvm::DILocation::get(
+            irModule->getContext(), line, column, funcDefs[funcDefCurrent].diFunc);
+        invoke->setDebugLoc(diLoc);
+    }
+
+    return invoke;
 }
 
 

@@ -6,17 +6,11 @@
 #include <cassert>
 #include <vector>
 
+#include "lexer.h"
+
 namespace ast {
 
-enum Operator {
-    Plus,
-    Minus,
-    Times,
-    Divide,
-    LT,
-    GT,
-    EqEq
-};
+enum Operator { Plus, Minus, Times, Divide, LT, GT, EqEq };
 
 
 class Node {
@@ -24,11 +18,14 @@ public:
     enum NodeKind { NodeList, NodeReturn, NodeIdent, NodeInteger, NodeFloating, NodeInfix,
         NodePrefix, NodeCall, NodeFnDef, NodeIf, NodeFor, NodeLet, NodeSet, NodeProgram };
 
+    Node(NodeKind kind, TextPos pos) : kind(kind), pos(pos) {}
+
     NodeKind getKind() const { return kind; }
-    Node(NodeKind kind) : kind(kind) {}
+    TextPos getPos() const { return pos; }
 
 private:
     NodeKind kind;
+    TextPos pos;
 };
 
 
@@ -36,8 +33,8 @@ private:
 template <typename T>
 class List : public Node {
 public:
-    List() : Node(NodeList) {}
-    List(T* item) : Node(NodeList) { list.push_back(item); }
+    List(TextPos pos) : Node(NodeList, pos) {}
+    List(TextPos pos, T* item) : Node(NodeList, pos) { list.push_back(item); }
 
     void cons(T *item) { list.insert(list.begin(), item); }
     size_t size() { return list.size(); }
@@ -49,27 +46,27 @@ public:
 
 
 struct Return : public Node {
-    Return(Node* expr) : Node(NodeReturn), expr(expr) {}
+    Return(TextPos pos, Node* expr) : Node(NodeReturn, pos), expr(expr) {}
     static bool classof(const Node *node) { return node->getKind() == NodeReturn; }
     Node* expr;
 };
 
 
 struct Ident : public Node {
-    Ident(const std::string &ident) : Node(NodeIdent), ident(ident) {}
+    Ident(TextPos pos, const std::string &ident) : Node(NodeIdent, pos), ident(ident) {}
     static bool classof(const Node *node) { return node->getKind() == NodeIdent; }
     std::string ident;
 };
 
 
 struct Integer : public Node {
-    Integer(int integer) : Node(NodeInteger), integer(integer) {}
+    Integer(TextPos pos, int integer) : Node(NodeInteger, pos), integer(integer) {}
     int integer;
     static bool classof(const Node *node) { return node->getKind() == NodeInteger; }
 };
 
 struct Floating : public Node {
-    Floating(double floating) : Node(NodeFloating), floating(floating) {}
+    Floating(TextPos pos, double floating) : Node(NodeFloating, pos), floating(floating) {}
     double floating;
     static bool classof(const Node *node) { return node->getKind() == NodeFloating; }
 };
@@ -78,8 +75,8 @@ struct Infix : public Node {
     Node *left, *right;
     Operator op;
 
-    Infix(Node *left, Operator op, Node *right) :
-        Node(NodeInfix),
+    Infix(TextPos pos, Node *left, Operator op, Node *right) :
+        Node(NodeInfix, pos),
         left(left),
         right(right),
         op(op)
@@ -91,13 +88,13 @@ struct Prefix : public Node {
     Node *right;
     Operator op;
 
-    Prefix(Operator op, Node* right) : Node(NodePrefix), right(right), op(op) {}
+    Prefix(TextPos pos, Operator op, Node* right) : Node(NodePrefix, pos), right(right), op(op) {}
     static bool classof(const Node *node) { return node->getKind() == NodePrefix; }
 };
 
 struct Call : public Node {
-    Call(std::string& name, List<Node> *args)
-        : Node(NodeCall), name(name), args(args) {}
+    Call(TextPos pos, std::string& name, List<Node> *args)
+        : Node(NodeCall, pos), name(name), args(args) {}
     static bool classof(const Node *node) { return node->getKind() == NodeCall; }
 
     std::string      name; 
@@ -105,10 +102,10 @@ struct Call : public Node {
 };
 
 struct FnDef : public Node {
-    FnDef(Ident * name,
+    FnDef(TextPos pos, Ident * name,
           List<Ident> *args,
           List<Node> *body)
-            : Node(NodeFnDef), name(name), args(args), body(body) {}
+            : Node(NodeFnDef, pos), name(name), args(args), body(body) {}
 
     Ident *name;
     List<Ident> *args;
@@ -119,8 +116,8 @@ struct FnDef : public Node {
 
 
 struct If : public Node {
-    If(Node *cnd, List<Node> *trueBody, List<Node> *falseBody)
-        : Node(NodeIf), cnd(cnd), trueBody(trueBody), falseBody(falseBody) {}
+    If(TextPos pos, Node *cnd, List<Node> *trueBody, List<Node> *falseBody)
+        : Node(NodeIf, pos), cnd(cnd), trueBody(trueBody), falseBody(falseBody) {}
 
     Node *cnd;
     List<Node> *trueBody;
@@ -131,7 +128,7 @@ struct If : public Node {
 
 
 struct Let : public Node {
-    Let(std::string &name, Node *expr) : Node(NodeLet), name(name), expr(expr) {}
+    Let(TextPos pos, std::string &name, Node *expr) : Node(NodeLet, pos), name(name), expr(expr) {}
 
     std::string name;
     Node *expr;
@@ -140,7 +137,7 @@ struct Let : public Node {
 };
 
 struct Set : public Node {
-    Set(std::string &name, Node *expr) : Node(NodeSet), name(name), expr(expr) {}
+    Set(TextPos pos, std::string &name, Node *expr) : Node(NodeSet, pos), name(name), expr(expr) {}
 
     std::string name;
     Node *expr;
@@ -150,8 +147,8 @@ struct Set : public Node {
 
 
 struct For : public Node {
-    For(Node *cnd, List<Node> *body)
-        : Node(NodeFor), cnd(cnd), body(body) {}
+    For(TextPos pos, Node *cnd, List<Node> *body)
+        : Node(NodeFor, pos), cnd(cnd), body(body) {}
 
     Node *cnd;
     List<Node> *body;
@@ -160,7 +157,7 @@ struct For : public Node {
 };
 
 struct Program : public Node {
-    Program(List<Node> *stmts) : Node(NodeProgram), stmts(stmts) {}
+    Program(TextPos pos, List<Node> *stmts) : Node(NodeProgram, pos), stmts(stmts) {}
 
     List<Node> *stmts;
 

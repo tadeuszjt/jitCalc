@@ -26,10 +26,10 @@ int yylex(yy::parser::semantic_type *un, yy::parser::location_type *yyloc) {
     case Lexer2::Token2::Eof:
         return yy::parser::token::YYEOF;
     case Lexer2::Token2::Integer:
-        *un =  new ast::Integer(std::stoi(token.str));
+        *un =  new ast::Integer(token.begin, std::stoi(token.str));
         return yy::parser::token::INTEGER;
     case Lexer2::Token2::Ident:
-        *un = new ast::Ident(token.str);
+        *un = new ast::Ident(token.begin, token.str);
         return yy::parser::token::ident;
     case Lexer2::Token2::Keyword:
         if (token.str == "fn") {

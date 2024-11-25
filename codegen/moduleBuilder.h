@@ -25,8 +25,8 @@ public:
     llvm::Function*       getFunc(const std::string &name);
 
     void                  createGlobalDeclaration(const char*, llvm::Type*);
-    llvm::Value*          createCall(const char *, const std::vector<llvm::Value*> &args);
-    llvm::Value*          createInvoke(llvm::BasicBlock *, llvm::BasicBlock*, const char *, const std::vector<llvm::Value*> &args);
+    llvm::Value*          createCall(size_t line, size_t column, const char *, const std::vector<llvm::Value*> &args);
+    llvm::Value*          createInvoke(size_t line, size_t column, llvm::BasicBlock *, llvm::BasicBlock*, const char *, const std::vector<llvm::Value*> &args);
     void                  createTrap();
     llvm::GlobalVariable* getGlobalVariable(const char* name);
     llvm::BasicBlock*     appendNewBlock(const char* suggestion = "block");
