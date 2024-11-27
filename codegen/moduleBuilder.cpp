@@ -14,9 +14,9 @@ ModuleBuilder::ModuleBuilder(
     const std::filesystem::path &debugFilePath
 )
     : irBuilder(context)
-    , irModule(std::make_unique<Module>(name, context))
+    , llModule(std::make_unique<Module>(name, context))
     , funcDefCurrent("")
-    , diBuilder(*irModule)
+    , diBuilder(*llModule)
 {
     // create debug structures
     diFile = diBuilder.createFile(
@@ -57,13 +57,13 @@ void ModuleBuilder::optimiseModule() {
     PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
 
     ModulePassManager MPM = PB.buildPerModuleDefaultPipeline(OptimizationLevel::O2);
-    MPM.run(*irModule, MAM);
+    MPM.run(*llModule, MAM);
 }
 
 
 void ModuleBuilder::createGlobalDeclaration(const char* name, llvm::Type* type) {
     auto *globalVar = new GlobalVariable(
-        *irModule,
+        *llModule,
         type,
         false,
         GlobalValue::ExternalLinkage,
@@ -73,16 +73,16 @@ void ModuleBuilder::createGlobalDeclaration(const char* name, llvm::Type* type) 
 }
 
 llvm::GlobalVariable* ModuleBuilder::getGlobalVariable(const char* name) {
-    return irModule->getGlobalVariable(name);
+    return llModule->getGlobalVariable(name);
 }
 
 Value* ModuleBuilder::createCall(size_t line, size_t column, const char *name, const std::vector<Value*> &args) {
     assert(funcDefs.find(name) != funcDefs.end());
-    auto *call = irBuilder.CreateCall(irModule->getFunction(name), args);
+    auto *call = irBuilder.CreateCall(llModule->getFunction(name), args);
 
     if (nullptr != funcDefs[funcDefCurrent].diFunc) {
         auto *diLoc = llvm::DILocation::get(
-            irModule->getContext(), line, column, funcDefs[funcDefCurrent].diFunc);
+            llModule->getContext(), line, column, funcDefs[funcDefCurrent].diFunc);
         call->setDebugLoc(diLoc);
     }
 
@@ -97,11 +97,11 @@ llvm::Value* ModuleBuilder::createInvoke(
     const char *name,
     const std::vector<llvm::Value*> &args)
 {
-    auto *invoke = irBuilder.CreateInvoke(irModule->getFunction(name), normalDest, unwindDest, args);
+    auto *invoke = irBuilder.CreateInvoke(llModule->getFunction(name), normalDest, unwindDest, args);
 
     if (nullptr != funcDefs[funcDefCurrent].diFunc) {
         auto *diLoc = llvm::DILocation::get(
-            irModule->getContext(), line, column, funcDefs[funcDefCurrent].diFunc);
+            llModule->getContext(), line, column, funcDefs[funcDefCurrent].diFunc);
         invoke->setDebugLoc(diLoc);
     }
 
@@ -110,7 +110,7 @@ llvm::Value* ModuleBuilder::createInvoke(
 
 
 void ModuleBuilder::createTrap() {
-    Function *trap = Intrinsic::getOrInsertDeclaration(irModule.get(), Intrinsic::trap);
+    Function *trap = Intrinsic::getOrInsertDeclaration(llModule.get(), Intrinsic::trap);
     irBuilder.CreateCall(trap);
 }
 
@@ -158,7 +158,7 @@ Function* ModuleBuilder::createFuncDeclaration(
         FunctionType::get(returnType, argTypes, isVarg),
         Function::ExternalLinkage,
         name,
-        irModule.get()
+        llModule.get()
     );
     assert(nullptr != fn);
     funcDefs[name].fnPtr = fn;
@@ -174,7 +174,7 @@ Function* ModuleBuilder::createFunc(
     Type *returnType
 ) {
     auto *fn = createFuncDeclaration(name, returnType, argTypes, false);
-    BasicBlock *block = BasicBlock::Create(irModule->getContext(), "EntryBlock", fn);
+    BasicBlock *block = BasicBlock::Create(llModule->getContext(), "EntryBlock", fn);
     assert(block != nullptr);
 
     auto *diInt32 = diBuilder.createBasicType("INTEGER", 32, llvm::dwarf::DW_ATE_signed);
@@ -226,10 +226,10 @@ Function* ModuleBuilder::getFunc(const std::string &name) {
 }
 
 void ModuleBuilder::printModule() {
-    irModule->print(outs(), nullptr);
+    llModule->print(outs(), nullptr);
 }
 
 void ModuleBuilder::verifyModule() {
-    bool failed = llvm::verifyModule(*irModule, &llvm::errs());
+    bool failed = llvm::verifyModule(*llModule, &llvm::errs());
     assert(!failed);
 }

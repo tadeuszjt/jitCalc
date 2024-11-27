@@ -44,8 +44,8 @@ public:
         return llvm::ConstantPointerNull::get(irBuilder.getPtrTy());
     }
 
-    llvm::Module &getModule() { return *irModule; }
-    std::unique_ptr<llvm::Module> moveModule() { return std::move(irModule); }
+    llvm::Module &getLlModule() { return *llModule; }
+    std::unique_ptr<llvm::Module> moveModule() { return std::move(llModule); }
     llvm::IRBuilder<> &ir() { return irBuilder; }
 
 private:
@@ -58,7 +58,7 @@ private:
     std::string                    funcDefCurrent;
 
     llvm::IRBuilder<>             irBuilder;
-    std::unique_ptr<llvm::Module> irModule;
+    std::unique_ptr<llvm::Module> llModule;
 
     // debug structures
     llvm::DIBuilder               diBuilder;

@@ -4,7 +4,6 @@
 
 #include <iostream>
 #include <cassert>
-#include <filesystem>
 
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
@@ -14,6 +13,8 @@
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Support/Casting.h>
 #include <llvm/Support/CommandLine.h>
+#include <llvm/Support/raw_ostream.h>
+#include <llvm/Support/FileSystem.h>
 
 #include "lexer.h"
 #include "ast.h"
@@ -24,6 +25,7 @@
 using namespace llvm;
 
 cl::opt<bool>        replMode("i", cl::desc("Interactive REPL Mode"));
+cl::opt<bool>        emitLlFile("l", cl::desc("Emit LLVM IR file"));
 cl::opt<std::string> inputFile(cl::Positional, cl::desc("<input file>"));
 
 std::unique_ptr<llvm::MemoryBuffer> getNextInput() {
@@ -58,6 +60,10 @@ int main(int argc, char **argv) {
             llvm::errs() << "Cannot have input file in REPL mode (-i)\n";
             return -1;
         }
+        if (emitLlFile.getNumOccurrences() > 0) {
+            llvm::errs() << "Cannot have output IR file in REPL mode (-l)\n";
+            return -1;
+        }
     } else {
         if (inputFile.getNumOccurrences() != 1) {
             llvm::errs() << "Need one input file\n";
@@ -77,28 +83,43 @@ int main(int argc, char **argv) {
     std::vector<std::pair<std::string, ObjFunc>> funcDefs;
 
     if (not replMode) {
-        auto filepath = std::filesystem::absolute(std::string(inputFile));
-        auto buffer = std::move(*llvm::MemoryBuffer::getFile(filepath.c_str()));
+        auto filePath = llvm::SmallString<128>(inputFile);
+        assert(!llvm::sys::fs::make_absolute(filePath));
+
+        auto buffer = std::move(*llvm::MemoryBuffer::getFile(filePath));
         assert(buffer);
 
         auto *prog = parse(*buffer);
         auto lock = context.getLock();
-        Emit emit(*context.getContext(), "jitCalc_child", filepath);
+        Emit emit(*context.getContext(), "jitCalc_child", filePath.c_str());
 
         emit.startFunction("func");
         emit.emitProgram(*prog);
         emit.mod().finaliseDebug();
+
         emit.mod().printModule();
         puts("");
         emit.mod().verifyModule();
         emit.mod().optimiseModule();
 
-        auto tracker = dyLib.createResourceTracker();
-        cantFail(jit->addIRModule(tracker, orc::ThreadSafeModule(emit.mod().moveModule(), context)));
-        auto symbol = cantFail(jit->lookup(dyLib, "func"));
-        auto funcPtr = symbol.toPtr<void(*)()>();
-        funcPtr();
-        cantFail(tracker->remove());
+        if (emitLlFile) {
+            auto llFilePath = filePath;
+            llFilePath.append(".ll");
+
+            std::error_code errorCode;
+            llvm::raw_fd_ostream llFile(llFilePath.c_str(), errorCode, llvm::sys::fs::OF_Text);
+            assert(!errorCode);
+            emit.mod().getLlModule().print(llFile, nullptr);
+
+
+        } else {
+            auto tracker = dyLib.createResourceTracker();
+            cantFail(jit->addIRModule(tracker, orc::ThreadSafeModule(emit.mod().moveModule(), context)));
+            auto symbol = cantFail(jit->lookup(dyLib, "func"));
+            auto funcPtr = symbol.toPtr<void(*)()>();
+            funcPtr();
+            cantFail(tracker->remove());
+        }
     } else {
         for (int i = 0;; i++) {
             auto buffer = getNextInput();
