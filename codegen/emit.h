@@ -14,9 +14,11 @@ struct ObjFunc {
 };
 
 struct ObjVar {
+    Sparse<ModuleBuilder::VarLocal>::Key debugKey;
 };
 
 using Object = std::variant<ObjFunc, ObjVar>;
+
 class Emit {
 public:
     Emit(

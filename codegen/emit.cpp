@@ -79,13 +79,18 @@ void Emit::emitStmt(const ast::Node &stmt) {
 
     } else if (auto *let = dyn_cast<ast::Let>(&stmt)) {
         auto *expr = emitExpression(*let->expr);
-        define(let->name, ObjVar{});
+        auto key = builder.createVarLocalDebug(let->name.c_str());
+        builder.setVarLocalDebugValue(key, expr);
+
+        define(let->name, ObjVar{.debugKey = key});
         writeVariable(symTab.look(let->name), builder.getCurrentBlock(), expr);
 
     } else if (auto *set = dyn_cast<ast::Set>(&stmt)) {
         auto *expr = emitExpression(*set->expr);
         auto obj = look(set->name);
         assert(std::holds_alternative<ObjVar>(obj));
+
+        builder.setVarLocalDebugValue(std::get<ObjVar>(obj).debugKey, expr);
         writeVariable(symTab.look(set->name), builder.getCurrentBlock(), expr);
 
     } else if (auto *if_ = dyn_cast<ast::If>(&stmt)) {
@@ -182,7 +187,11 @@ void Emit::emitFuncDef(const ast::FnDef& fnDef) {
     symTab.pushScope();
 
     for (int i = 0; i < fnDef.args->size(); i++) {
-        define((*fnDef.args).list[i]->ident, ObjVar{});
+        auto key = builder.createArgDebug((*fnDef.args).list[i]->ident.c_str(), i + 1);
+
+        define((*fnDef.args).list[i]->ident, ObjVar{.debugKey = key});
+
+        builder.setVarLocalDebugValue(key, builder.getCurrentFuncArg(i));
         writeVariable(symTab.look((*fnDef.args).list[i]->ident), entry, builder.getCurrentFuncArg(i));
     }
 

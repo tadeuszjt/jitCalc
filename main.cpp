@@ -89,18 +89,19 @@ int main(int argc, char **argv) {
         auto buffer = std::move(*llvm::MemoryBuffer::getFile(filePath));
         assert(buffer);
 
+
         auto *prog = parse(*buffer);
         auto lock = context.getLock();
         Emit emit(*context.getContext(), "jitCalc_child", filePath.c_str());
 
-        emit.startFunction("func");
+        emit.startFunction("main");
         emit.emitProgram(*prog);
         emit.mod().finaliseDebug();
 
         emit.mod().printModule();
         puts("");
         emit.mod().verifyModule();
-        emit.mod().optimiseModule();
+        //emit.mod().optimiseModule();
 
         if (emitLlFile) {
             auto llFilePath = filePath;
@@ -115,7 +116,7 @@ int main(int argc, char **argv) {
         } else {
             auto tracker = dyLib.createResourceTracker();
             cantFail(jit->addIRModule(tracker, orc::ThreadSafeModule(emit.mod().moveModule(), context)));
-            auto symbol = cantFail(jit->lookup(dyLib, "func"));
+            auto symbol = cantFail(jit->lookup(dyLib, "main"));
             auto funcPtr = symbol.toPtr<void(*)()>();
             funcPtr();
             cantFail(tracker->remove());
@@ -136,7 +137,7 @@ int main(int argc, char **argv) {
             Emit emit(*context.getContext(), "jitCalc_child");
             emit.addFuncDefs(funcDefs);
 
-            std::string funcName = "func" + std::to_string(i);
+            std::string funcName = "main" + std::to_string(i);
             emit.startFunction(funcName);
             emit.emitProgram(*prog);
 

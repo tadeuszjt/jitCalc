@@ -18,6 +18,9 @@ ModuleBuilder::ModuleBuilder(
     , funcDefCurrent("")
     , diBuilder(*llModule)
 {
+    llModule->setSourceFileName(debugFilePath.filename().c_str());
+
+
     // create debug structures
     diFile = diBuilder.createFile(
         debugFilePath.filename().c_str(),
@@ -31,14 +34,11 @@ ModuleBuilder::ModuleBuilder(
         "jitCalc",
         false,
         "",
-        0,
+        1,
         "",
         llvm::DICompileUnit::DebugEmissionKind::FullDebug
     );
     assert(nullptr != diCompileUnit);
-
-    //diInt32Ty = diBuilder.createBasicType("INTEGER", 32, llvm::dwarf::DW_ATE_signed);
-    //assert(nullptr != diInt32Ty);
 }
 
 
@@ -163,7 +163,8 @@ Function* ModuleBuilder::createFuncDeclaration(
     assert(nullptr != fn);
     funcDefs[name].fnPtr = fn;
     funcDefs[name].diFunc = nullptr;
-
+    funcDefs[name].diScope = nullptr;
+    
     return fn;
 }
 
@@ -204,6 +205,14 @@ Function* ModuleBuilder::createFunc(
     assert(nullptr != funcDefs[name].diFunc);
     fn->setSubprogram(funcDefs[name].diFunc);
 
+    funcDefs[name].diScope = diBuilder.createLexicalBlock(
+        funcDefs[name].diFunc,
+        diFile,
+        0, // line no
+        0  // col no
+    ); 
+
+    assert(nullptr != funcDefs[name].diScope);
     assert(fn->getSubprogram() == funcDefs[name].diFunc);
 
     return fn;
@@ -224,6 +233,45 @@ Function* ModuleBuilder::getFunc(const std::string &name) {
 
     return funcDefs[name].fnPtr;
 }
+
+Sparse<ModuleBuilder::VarLocal>::Key ModuleBuilder::createVarLocalDebug(const char *name) {
+    auto *fn = funcDefs[funcDefCurrent].diFunc;
+    assert(nullptr != fn);
+    auto *var = diBuilder.createAutoVariable(
+        fn, name, diFile, 2, // line number
+        diBuilder.createBasicType("INTEGER", 32, llvm::dwarf::DW_ATE_signed));
+    assert(nullptr != var);
+
+    auto key = varLocals.insert();
+    varLocals.at(key).diLocalVar = var;
+    return key;
+}
+
+Sparse<ModuleBuilder::VarLocal>::Key ModuleBuilder::createArgDebug(const char *name, int argIdx) {
+    auto *fn = funcDefs[funcDefCurrent].diFunc;
+    auto *var = diBuilder.createParameterVariable(
+        fn, name, argIdx, diFile, 2, // line number
+        diBuilder.createBasicType("INTEGER", 32, llvm::dwarf::DW_ATE_signed));
+    assert(nullptr != var);
+
+    auto key = varLocals.insert();
+    varLocals.at(key).diLocalVar = var;
+    return key;
+}
+
+
+void ModuleBuilder::setVarLocalDebugValue(Sparse<ModuleBuilder::VarLocal>::Key key, llvm::Value *value) {
+    auto *diLoc = llvm::DILocation::get(
+        llModule->getContext(), 0, 0, funcDefs[funcDefCurrent].diFunc);
+    diBuilder.insertDbgValueIntrinsic(
+        value,
+        varLocals.at(key).diLocalVar,
+        diBuilder.createExpression(),
+        diLoc,
+        getCurrentBlock()
+    );
+}
+
 
 void ModuleBuilder::printModule() {
     llModule->print(outs(), nullptr);

@@ -3,15 +3,22 @@
 #include <map>
 #include <filesystem>
 
-#include "ast.h"
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/DIBuilder.h>
 
+#include "ast.h"
+#include "sparse.h"
+
 class ModuleBuilder {
 public:
+    struct VarLocal {
+        llvm::DILocalVariable *diLocalVar;
+    };
+
+
     ModuleBuilder(
         llvm::LLVMContext &context,
         const std::string &name,
@@ -33,6 +40,11 @@ public:
     void                  setCurrentBlock(llvm::BasicBlock *);
     llvm::BasicBlock*     getCurrentBlock();
 
+    Sparse<VarLocal>::Key createVarLocalDebug(const char *name);
+    Sparse<VarLocal>::Key createArgDebug(const char *name, int argIdx);
+    void                  setVarLocalDebugValue(Sparse<VarLocal>::Key key, llvm::Value *value);
+
+
     void              printModule();
     void              optimiseModule();
     void              verifyModule();
@@ -53,9 +65,11 @@ private:
     struct FuncDef { 
         llvm::Function *fnPtr;
         llvm::DISubprogram *diFunc;
+        llvm::DILocalScope *diScope;
     };
     std::map<std::string, FuncDef> funcDefs;
     std::string                    funcDefCurrent;
+
 
     llvm::IRBuilder<>             irBuilder;
     std::unique_ptr<llvm::Module> llModule;
@@ -65,4 +79,10 @@ private:
     llvm::DIFile                  *diFile;
     llvm::DICompileUnit           *diCompileUnit;
     llvm::DIBasicType             *diInt32Ty;
+
+
+    // variable debug
+    Sparse<VarLocal> varLocals;
+
+
 };
