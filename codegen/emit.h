@@ -3,6 +3,7 @@
 #include "moduleBuilder.h"
 #include "ast.h"
 #include "symbols.h"
+#include "sparse.h"
 
 #include <set>
 #include <map>
@@ -30,14 +31,15 @@ public:
     void startFunction(const std::string &name);
     void emitPrintf(const char* fmt, std::vector<llvm::Value*> args);
 
-    void         emitProgram(const ast::Program&);
-    void         emitStmt(const ast::Node &);
-    void         emitFuncDef(const ast::FnDef &);
-    llvm::Value* emitExpression(const ast::Node &);
-    llvm::Value* emitInfix(const ast::Infix &);
-    llvm::Value* emitPrefix(const ast::Prefix &);
+    void         emitProgram(Sparse<ast::Node>::Key, Sparse<ast::Node> &);
+
+    void         emitStmt(Sparse<ast::Node> &, const ast::Node &);
+    void         emitFuncDef(Sparse<ast::Node> &, const ast::FnDef &);
+    llvm::Value* emitExpression(Sparse<ast::Node> &, const ast::Node &);
+    llvm::Value* emitInfix(Sparse<ast::Node> &, const ast::Infix &);
+    llvm::Value* emitPrefix(Sparse<ast::Node> &, const ast::Prefix &);
     llvm::Value* emitInt32(int n);
-    llvm::Value* emitCall(const ast::Call&, bool);
+    llvm::Value* emitCall(Sparse<ast::Node> &, const ast::Call&, bool);
     void         emitReturn(llvm::Value *value);
     void         emitReturnNoBlock(llvm::Value *value);
 

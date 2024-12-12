@@ -90,12 +90,15 @@ int main(int argc, char **argv) {
         assert(buffer);
 
 
-        auto *prog = parse(*buffer);
+        Sparse<ast::Node>::Key programKey;
+        auto *prog = parse(programKey, *buffer);
+        assert(nullptr != prog);
+
         auto lock = context.getLock();
         Emit emit(*context.getContext(), "jitCalc_child", filePath.c_str());
 
         emit.startFunction("main");
-        emit.emitProgram(*prog);
+        emit.emitProgram(programKey, *prog);
         emit.mod().finaliseDebug();
 
         emit.mod().printModule();
@@ -111,8 +114,6 @@ int main(int argc, char **argv) {
             llvm::raw_fd_ostream llFile(llFilePath.c_str(), errorCode, llvm::sys::fs::OF_Text);
             assert(!errorCode);
             emit.mod().getLlModule().print(llFile, nullptr);
-
-
         } else {
             auto tracker = dyLib.createResourceTracker();
             cantFail(jit->addIRModule(tracker, orc::ThreadSafeModule(emit.mod().moveModule(), context)));
@@ -128,7 +129,8 @@ int main(int argc, char **argv) {
                 break;
             }
 
-            auto *prog = parse(*buffer);
+            Sparse<ast::Node>::Key programKey;
+            auto *prog = parse(programKey, *buffer);
             if (prog == nullptr) {
                 continue;
             }
@@ -139,7 +141,7 @@ int main(int argc, char **argv) {
 
             std::string funcName = "main" + std::to_string(i);
             emit.startFunction(funcName);
-            emit.emitProgram(*prog);
+            emit.emitProgram(programKey, *prog);
 
             emit.mod().printModule();
             emit.mod().verifyModule();

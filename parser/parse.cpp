@@ -12,7 +12,10 @@
 
 static std::unique_ptr<Lexer2> lexer2;
 static std::stringstream      stream;
-extern ast::Program           *bisonProgramResult;
+
+extern Sparse<ast::Node>      astResult;
+extern std::optional<Sparse<ast::Node>::Key> astResultProgramKey;
+
 
 int yylex(yy::parser::semantic_type *un, yy::parser::location_type *yyloc) {
     auto token = lexer2->nextToken(stream);
@@ -26,10 +29,10 @@ int yylex(yy::parser::semantic_type *un, yy::parser::location_type *yyloc) {
     case Lexer2::Token2::Eof:
         return yy::parser::token::YYEOF;
     case Lexer2::Token2::Integer:
-        *un =  new ast::Integer(token.begin, std::stoi(token.str));
+        *un = astResult.insert(ast::Integer(token.begin, std::stoi(token.str)));
         return yy::parser::token::INTEGER;
     case Lexer2::Token2::Ident:
-        *un = new ast::Ident(token.begin, token.str);
+        *un = astResult.insert(ast::Ident(token.begin, token.str));
         return yy::parser::token::ident;
     case Lexer2::Token2::Keyword:
         if (token.str == "fn") {
@@ -88,8 +91,9 @@ int yylex(yy::parser::semantic_type *un, yy::parser::location_type *yyloc) {
     return 0;
 }
 
-ast::Program *parse(llvm::MemoryBuffer &buffer) {
-    bisonProgramResult = nullptr;
+Sparse<ast::Node>* parse(Sparse<ast::Node>::Key &keyOut, llvm::MemoryBuffer &buffer) {
+    astResult.clear();
+    astResultProgramKey = std::nullopt;
 
     // todo clean this up
     std::string text = std::string(buffer.getBuffer());
@@ -127,5 +131,12 @@ ast::Program *parse(llvm::MemoryBuffer &buffer) {
     yy::parser parser;
     parser.parse();
     lexer2.reset();
-    return bisonProgramResult;
+
+
+    if (astResultProgramKey.has_value()) {
+        keyOut = astResultProgramKey.value();
+        return &astResult;
+    }
+
+    return nullptr;
 }

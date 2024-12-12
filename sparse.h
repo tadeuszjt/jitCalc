@@ -1,6 +1,9 @@
 #ifndef SPARSE_H
 #define SPARSE_H
 
+#include <cstdio>
+#include <cassert>
+#include <cstddef>
 #include <vector>
 
 /* Represents a sparse vector of elements for constant-time insert/delete. */
@@ -11,11 +14,27 @@ class Sparse {
 public:
     class Key {
     public:
-        Key(size_t index) : index(index) {}
+        Key(size_t idx) : index(idx) {}
         Key(const Key &key) : index(key.index) {}
+        Key() : index(~(size_t)0x0) {}
         void operator=(const Key &key) { index = key.index; }
         size_t index;
     };
+
+    Key insert(const T& elem) {
+        size_t index = 0;
+
+        if (emptyIndices.size() > 0) {
+            index = emptyIndices.back();
+            elements[index] = elem;
+            emptyIndices.pop_back();
+        } else {
+            index = elements.size();
+            elements.push_back(elem);
+        }
+
+        return Key(index);
+    }
 
 
     Key insert() {
@@ -39,7 +58,7 @@ public:
 
     void remove(Key key) {
         assert(elements.size() > 0);
-        assert(index < elements.size());
+        assert(key.index < elements.size());
 
         if (key.index == elements.size() - 1) {
             elements.pop_back();
@@ -55,6 +74,11 @@ public:
 
     size_t size() {
         return elements.size() - emptyIndices.size();
+    }
+
+    void clear() {
+         emptyIndices.clear();
+         elements.clear();
     }
 
 

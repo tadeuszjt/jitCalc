@@ -6,162 +6,175 @@
 #include <cassert>
 #include <vector>
 
+#include "sparse.h"
 #include "lexer.h"
 
 namespace ast {
 
 enum Operator { Plus, Minus, Times, Divide, LT, GT, EqEq };
 
+struct List;
+struct Program;
+struct Integer;
+struct Prefix;
+struct Infix;
+struct Return;
+struct Ident;
+struct Call;
+struct FnDef;
+struct If;
+struct Let;
+struct Set;
+struct For;
 
-class Node {
+using Node = std::variant<Program, List, Integer, Prefix, Infix, Return, Ident, Call, FnDef, If,
+    Let, Set, For>;
+
+// a class to represent a list of nodes such as a comma-separated list of expressions.
+struct List {
 public:
-    enum NodeKind { NodeList, NodeReturn, NodeIdent, NodeInteger, NodeFloating, NodeInfix,
-        NodePrefix, NodeCall, NodeFnDef, NodeIf, NodeFor, NodeLet, NodeSet, NodeProgram };
+    List& operator=(const List&) = default;
 
-    Node(NodeKind kind, TextPos pos) : kind(kind), pos(pos) {}
+    List(TextPos pos) : pos(pos) {}
+    List(TextPos pos, Sparse<Node>::Key item) : pos(pos) { list.push_back(item); }
 
-    NodeKind getKind() const { return kind; }
-    TextPos getPos() const { return pos; }
+    void cons(Sparse<Node>::Key item) { list.insert(list.begin(), item); }
+    size_t size() { return list.size(); }
 
-private:
-    NodeKind kind;
+    std::vector< Sparse<Node>::Key > list;
     TextPos pos;
 };
 
 
-// a class to represent a list of nodes such as a comma-separated list of expressions.
-template <typename T>
-class List : public Node {
-public:
-    List(TextPos pos) : Node(NodeList, pos) {}
-    List(TextPos pos, T* item) : Node(NodeList, pos) { list.push_back(item); }
+struct Program {
+    Program& operator=(const Program&) = default;
 
-    void cons(T *item) { list.insert(list.begin(), item); }
-    size_t size() { return list.size(); }
-
-    static bool classof(const Node *node) { return node->getKind() == NodeList; }
-
-    std::vector<T*> list;
+    Program(TextPos pos, Sparse<ast::Node>::Key key) : pos(pos), stmtList(key) {}
+    Sparse<Node>::Key stmtList;
+    TextPos pos;
 };
 
 
-struct Return : public Node {
-    Return(TextPos pos, Node* expr) : Node(NodeReturn, pos), expr(expr) {}
-    static bool classof(const Node *node) { return node->getKind() == NodeReturn; }
-    Node* expr;
-};
+struct Integer {
+    Integer& operator=(const Integer&) = default;
 
+    Integer(TextPos pos, int integer) : pos(pos), integer(integer) {}
 
-struct Ident : public Node {
-    Ident(TextPos pos, const std::string &ident) : Node(NodeIdent, pos), ident(ident) {}
-    static bool classof(const Node *node) { return node->getKind() == NodeIdent; }
-    std::string ident;
-};
-
-
-struct Integer : public Node {
-    Integer(TextPos pos, int integer) : Node(NodeInteger, pos), integer(integer) {}
     int integer;
-    static bool classof(const Node *node) { return node->getKind() == NodeInteger; }
+    TextPos pos;
 };
 
-struct Floating : public Node {
-    Floating(TextPos pos, double floating) : Node(NodeFloating, pos), floating(floating) {}
-    double floating;
-    static bool classof(const Node *node) { return node->getKind() == NodeFloating; }
-};
+struct Prefix {
+    Prefix& operator=(const Prefix&) = default;
 
-struct Infix : public Node {
-    Node *left, *right;
+    Prefix(TextPos pos, Operator op, Sparse<Node>::Key right) : pos(pos), right(right), op(op) {}
+
+    Sparse<Node>::Key right;
     Operator op;
+    TextPos pos;
+};
 
-    Infix(TextPos pos, Node *left, Operator op, Node *right) :
-        Node(NodeInfix, pos),
+struct Infix {
+    Infix& operator=(const Infix&) = default;
+
+    Infix(TextPos pos, Sparse<Node>::Key left, Operator op, Sparse<Node>::Key right) :
+        pos(pos),
         left(left),
         right(right),
         op(op)
     {}
-    static bool classof(const Node *node) { return node->getKind() == NodeInfix; }
-};
 
-struct Prefix : public Node {
-    Node *right;
+    Sparse<Node>::Key left, right;
     Operator op;
-
-    Prefix(TextPos pos, Operator op, Node* right) : Node(NodePrefix, pos), right(right), op(op) {}
-    static bool classof(const Node *node) { return node->getKind() == NodePrefix; }
-};
-
-struct Call : public Node {
-    Call(TextPos pos, std::string& name, List<Node> *args)
-        : Node(NodeCall, pos), name(name), args(args) {}
-    static bool classof(const Node *node) { return node->getKind() == NodeCall; }
-
-    std::string      name; 
-    List<Node> *args;
-};
-
-struct FnDef : public Node {
-    FnDef(TextPos pos, Ident * name,
-          List<Ident> *args,
-          List<Node> *body)
-            : Node(NodeFnDef, pos), name(name), args(args), body(body) {}
-
-    Ident *name;
-    List<Ident> *args;
-    List<Node> *body;
-
-    static bool classof(const Node *node) { return node->getKind() == NodeFnDef; }
+    TextPos pos;
 };
 
 
-struct If : public Node {
-    If(TextPos pos, Node *cnd, List<Node> *trueBody, List<Node> *falseBody)
-        : Node(NodeIf, pos), cnd(cnd), trueBody(trueBody), falseBody(falseBody) {}
+struct Return {
+    Return& operator=(const Return&) = default;
 
-    Node *cnd;
-    List<Node> *trueBody;
-    List<Node> *falseBody;
-
-    static bool classof(const Node *node) { return node->getKind() == NodeIf; }
+    Return(TextPos pos, Sparse<Node>::Key expr) : pos(pos), expr(expr) {}
+    Sparse<Node>::Key expr;
+    TextPos pos;
 };
 
 
-struct Let : public Node {
-    Let(TextPos pos, std::string &name, Node *expr) : Node(NodeLet, pos), name(name), expr(expr) {}
+struct Ident {
+    Ident& operator=(const Ident&) = default;
+
+    Ident(TextPos pos, const std::string &ident) : pos(pos), ident(ident) {}
+    std::string ident;
+    TextPos pos;
+};
+
+
+struct Call {
+    Call& operator=(const Call&) = default;
+
+    Call(TextPos pos, std::string& name, Sparse<Node>::Key args)
+        : pos(pos), name(name), args(args) {}
+
+    std::string name; 
+    Sparse<Node>::Key args;
+    TextPos pos;
+};
+
+
+struct FnDef {
+    FnDef& operator=(const FnDef&) = default;
+
+    FnDef(TextPos pos, const std::string &name, Sparse<Node>::Key args, Sparse<Node>::Key body)
+            : pos(pos), name(name), args(args), body(body) {}
 
     std::string name;
-    Node *expr;
-
-    static bool classof(const Node *node) { return node->getKind() == NodeLet; }
+    Sparse<Node>::Key args, body;
+    TextPos pos;
 };
 
-struct Set : public Node {
-    Set(TextPos pos, std::string &name, Node *expr) : Node(NodeSet, pos), name(name), expr(expr) {}
+
+struct If {
+    If& operator=(const If&) = default;
+
+    If(TextPos pos, Sparse<Node>::Key cnd, Sparse<Node>::Key trueBody, Sparse<Node>::Key falseBody)
+        : pos(pos), cnd(cnd), trueBody(trueBody), falseBody(falseBody) {}
+
+    Sparse<Node>::Key cnd, trueBody, falseBody;
+    TextPos pos;
+};
+
+
+struct Let {
+    Let& operator=(const Let&) = default;
+
+    Let(TextPos pos, std::string &name, Sparse<Node>::Key expr)
+        : pos(pos), name(name), expr(expr) {}
 
     std::string name;
-    Node *expr;
-
-    static bool classof(const Node *node) { return node->getKind() == NodeSet; }
+    Sparse<Node>::Key expr;
+    TextPos pos;
 };
 
 
-struct For : public Node {
-    For(TextPos pos, Node *cnd, List<Node> *body)
-        : Node(NodeFor, pos), cnd(cnd), body(body) {}
+struct Set {
+    Set& operator=(const Set&) = default;
 
-    Node *cnd;
-    List<Node> *body;
+    Set(TextPos pos, std::string &name, Sparse<Node>::Key expr)
+        : pos(pos), name(name), expr(expr) {}
 
-    static bool classof(const Node *node) { return node->getKind() == NodeFor; }
+    std::string name;
+    Sparse<Node>::Key expr;
+    TextPos pos;
 };
 
-struct Program : public Node {
-    Program(TextPos pos, List<Node> *stmts) : Node(NodeProgram, pos), stmts(stmts) {}
 
-    List<Node> *stmts;
+struct For {
+    For& operator=(const For&) = default;
 
-    static bool classof(const Node *node) { return node->getKind() == NodeProgram; }
+    For(TextPos pos, Sparse<Node>::Key cnd, Sparse<Node>::Key body)
+        : pos(pos), cnd(cnd), body(body) {}
+
+    Sparse<Node>::Key cnd, body;
+    TextPos pos;
 };
 }
 

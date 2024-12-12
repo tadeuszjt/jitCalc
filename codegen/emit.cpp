@@ -54,47 +54,56 @@ Emit::Emit(LLVMContext &context, const std::string &name, const std::filesystem:
 
 
 
-void Emit::emitProgram(const ast::Program &program) {
-    for (ast::Node *stmtPtr : (program.stmts)->list) {
+void Emit::emitProgram(Sparse<ast::Node>::Key key, Sparse<ast::Node> &ast) {
+    assert( std::holds_alternative<ast::Program>(ast.at(key)) );
+    auto &prog = std::get<ast::Program>(ast.at(key));
 
-        if (auto *fnDef = dyn_cast<ast::FnDef>(stmtPtr)) {
-            emitFuncDef(*fnDef);
+    assert( std::holds_alternative<ast::List>(ast.at(prog.stmtList)) );
+    auto &list = std::get<ast::List>(ast.at(prog.stmtList));
+
+    for (auto key : list.list) {
+        if (std::holds_alternative<ast::FnDef>(ast.at(key))) {
+            emitFuncDef(ast, std::get<ast::FnDef>(ast.at(key)));
         } else {
-            auto *v = emitExpression(*stmtPtr);
-            this->emitPrintf("result: %d\n", {v});
+            auto *value = emitExpression(ast, ast.at(key) );
+            emitPrintf("result: %d\n", {value});
         }
     }
+
     emitReturnNoBlock(emitInt32(0));
 }
 
 
-void Emit::emitStmt(const ast::Node &stmt) {
-    if (auto *fnDef = dyn_cast<ast::FnDef>(&stmt)) {
-        emitFuncDef(*fnDef);
+void Emit::emitStmt(Sparse<ast::Node> &ast, const ast::Node &stmt) {
+    if (std::holds_alternative<ast::FnDef>(stmt)) {
+        emitFuncDef(ast, std::get<ast::FnDef>(stmt));
 
-    } else if (auto *ret = dyn_cast<ast::Return>(&stmt)) {
-        printf("Returning at line: %d, col: %d\n", ret->getPos().line, ret->getPos().column);
-        auto *e = emitExpression(*ret->expr);
+    } else if (std::holds_alternative<ast::Return>(stmt)) {
+        auto *e = emitExpression(ast, ast.at(std::get<ast::Return>(stmt).expr));
         emitReturn(e);
-
-    } else if (auto *let = dyn_cast<ast::Let>(&stmt)) {
-        auto *expr = emitExpression(*let->expr);
-        auto key = builder.createVarLocalDebug(let->name.c_str());
+    
+    } else if (std::holds_alternative<ast::Let>(stmt)) {
+        auto &let = std::get<ast::Let>(stmt);
+        auto *expr = emitExpression(ast, ast.at(let.expr));
+        auto key = builder.createVarLocalDebug(let.name.c_str());
         builder.setVarLocalDebugValue(key, expr);
 
-        define(let->name, ObjVar{.debugKey = key});
-        writeVariable(symTab.look(let->name), builder.getCurrentBlock(), expr);
+        define(let.name, ObjVar{.debugKey = key});
+        writeVariable(symTab.look(let.name), builder.getCurrentBlock(), expr);
 
-    } else if (auto *set = dyn_cast<ast::Set>(&stmt)) {
-        auto *expr = emitExpression(*set->expr);
-        auto obj = look(set->name);
+    } else if (std::holds_alternative<ast::Set>(stmt)) {
+        auto &set = std::get<ast::Set>(stmt);
+        auto *expr = emitExpression(ast, ast.at(set.expr));
+        auto obj = look(set.name);
         assert(std::holds_alternative<ObjVar>(obj));
 
         builder.setVarLocalDebugValue(std::get<ObjVar>(obj).debugKey, expr);
-        writeVariable(symTab.look(set->name), builder.getCurrentBlock(), expr);
+        writeVariable(symTab.look(set.name), builder.getCurrentBlock(), expr);
 
-    } else if (auto *if_ = dyn_cast<ast::If>(&stmt)) {
-        auto *cnd = emitExpression(*if_->cnd);
+    } else if (std::holds_alternative<ast::If>(stmt)) {
+        auto &if_ = std::get<ast::If>(stmt);
+
+        auto *cnd = emitExpression(ast, ast.at(if_.cnd));
         auto *cmp = builder.ir().CreateICmpEQ(cnd, emitInt32(0));
 
         BasicBlock *trueBlk = builder.appendNewBlock();
@@ -109,8 +118,9 @@ void Emit::emitStmt(const ast::Node &stmt) {
         builder.setCurrentBlock(trueBlk);
         symTab.pushScope();
 
-        for (ast::Node *stmtPtr : (*if_->trueBody).list) {
-            emitStmt(*stmtPtr);
+        auto &bodyList = std::get<ast::List>(ast.at(if_.trueBody));
+        for (auto stmtKey : bodyList.list) {
+            emitStmt(ast, ast.at(stmtKey));
         }
         symTab.popScope();
         builder.ir().CreateBr(end);
@@ -118,8 +128,9 @@ void Emit::emitStmt(const ast::Node &stmt) {
         builder.setCurrentBlock(falseBlk);
         symTab.pushScope();
 
-        for (ast::Node *stmtPtr : (*if_->falseBody).list) {
-            emitStmt(*stmtPtr);
+        auto &falseBodyList = std::get<ast::List>(ast.at(if_.falseBody));
+        for (auto stmtKey : falseBodyList.list) {
+            emitStmt(ast, ast.at(stmtKey));
         }
         symTab.popScope();
         builder.ir().CreateBr(end);
@@ -128,7 +139,9 @@ void Emit::emitStmt(const ast::Node &stmt) {
 
         builder.setCurrentBlock(end);
 
-    } else if (auto *for_ = dyn_cast<ast::For>(&stmt)) {
+    } else if (std::holds_alternative<ast::For>(stmt)) {
+        auto &for_ = std::get<ast::For>(stmt);
+
         BasicBlock *curBlk = builder.getCurrentBlock();
         BasicBlock *forBlk = builder.appendNewBlock("for");
         BasicBlock *bdyBlk = builder.appendNewBlock("body");
@@ -143,7 +156,7 @@ void Emit::emitStmt(const ast::Node &stmt) {
         auto *idx2 = builder.ir().CreateAdd(idx, builder.ir().getInt32(1),  "increment");
         idx->addIncoming(idx2, bdyEndBlk);
 
-        auto *val = emitExpression(*for_->cnd);
+        auto *val = emitExpression(ast, ast.at(for_.cnd));
         auto *cnd = builder.ir().CreateICmpSLT(idx, val);
 
         builder.ir().CreateCondBr(cnd, bdyBlk, endBlk);
@@ -152,8 +165,10 @@ void Emit::emitStmt(const ast::Node &stmt) {
         builder.setCurrentBlock(bdyBlk);
         symTab.pushScope();
 
-        for (ast::Node *stmtPtr : (*for_->body).list) {
-            emitStmt(*stmtPtr);
+        auto &bodyList = std::get<ast::List>(ast.at(for_.body));
+
+        for (auto stmtKey : bodyList.list) {
+            emitStmt(ast, ast.at(stmtKey));
         }
         symTab.popScope();
         builder.ir().CreateBr(bdyEndBlk);
@@ -172,31 +187,35 @@ void Emit::emitStmt(const ast::Node &stmt) {
 }
 
 
-void Emit::emitFuncDef(const ast::FnDef& fnDef) {
-    define(fnDef.name->ident, ObjFunc{fnDef.args->size(), false});
-    auto funcOld = funcCurrent;
-    funcCurrent = fnDef.name->ident;
+void Emit::emitFuncDef(Sparse<ast::Node> &ast, const ast::FnDef& fnDef) {
+    auto &argsList = std::get<ast::List>(ast.at(fnDef.args));
 
-    std::vector<Type*> argTypes(fnDef.args->size(), builder.ir().getInt32Ty());
-    auto *fn = builder.createFunc(fnDef.name->ident.c_str(), argTypes, builder.ir().getInt32Ty());
+    define(fnDef.name, ObjFunc{argsList.size(), false});
+    auto funcOld = funcCurrent;
+    funcCurrent = fnDef.name;
+
+    std::vector<Type*> argTypes(argsList.size(), builder.ir().getInt32Ty());
+    auto *fn = builder.createFunc(fnDef.name.c_str(), argTypes, builder.ir().getInt32Ty());
     fn->setPersonalityFn(builder.getFunc("__gxx_personality_v0"));
-    builder.setCurrentFunc(fnDef.name->ident.c_str());
+    builder.setCurrentFunc(fnDef.name.c_str());
     BasicBlock *entry = builder.getCurrentBlock();
     sealBlock(entry);
 
     symTab.pushScope();
 
-    for (int i = 0; i < fnDef.args->size(); i++) {
-        auto key = builder.createArgDebug((*fnDef.args).list[i]->ident.c_str(), i + 1);
+    for (int i = 0; i < argsList.size(); i++) {
+        auto &arg = std::get<ast::Ident>(ast.at(argsList.list[i]));
+        auto key = builder.createArgDebug(arg.ident.c_str(), i + 1);
 
-        define((*fnDef.args).list[i]->ident, ObjVar{.debugKey = key});
+        define(arg.ident, ObjVar{.debugKey = key});
 
         builder.setVarLocalDebugValue(key, builder.getCurrentFuncArg(i));
-        writeVariable(symTab.look((*fnDef.args).list[i]->ident), entry, builder.getCurrentFuncArg(i));
+        writeVariable(symTab.look(arg.ident), entry, builder.getCurrentFuncArg(i));
     }
 
-    for (ast::Node *stmtPtr : (*fnDef.body).list) {
-        emitStmt(*stmtPtr);
+    auto &bodyList = std::get<ast::List>(ast.at(fnDef.body));
+    for (auto stmtKey : bodyList.list) {
+        emitStmt(ast, ast.at(stmtKey) );
     }
 
     symTab.popScope();
@@ -210,41 +229,21 @@ void Emit::emitFuncDef(const ast::FnDef& fnDef) {
 }
 
 
-Value* Emit::emitInt32(int n) {
-    return builder.ir().getInt32(n);
-}
-
-void Emit::startFunction(const std::string &name) {
-    assert(startFunctionName == "");
-    auto *fn = builder.createFunc(name.c_str(), {}, builder.ir().getInt32Ty());
-    fn->setPersonalityFn(builder.getFunc("__gxx_personality_v0"));
-    builder.setCurrentFunc(name.c_str());
-    startFunctionName = name;
-}
-
-void Emit::emitReturn(Value *value) {
-    BasicBlock *emptyBlock = builder.appendNewBlock();
-    builder.ir().CreateRet(value);
-    builder.setCurrentBlock(emptyBlock);
-}
-
-void Emit::emitReturnNoBlock(Value *value) {
-    builder.ir().CreateRet(value);
-}
 
 
-
-Value* Emit::emitCall(const ast::Call &call, bool resume) {
+Value* Emit::emitCall(Sparse<ast::Node> &ast, const ast::Call &call, bool resume) {
     auto object = look(call.name);
     assert(std::holds_alternative<ObjFunc>(object));
 
     auto objFunc = std::get<ObjFunc>(object);
 
-    assert(call.args->size() == objFunc.numArgs);
+    auto &argList = std::get<ast::List>(ast.at(call.args));
+
+    assert(argList.size() == objFunc.numArgs);
 
     std::vector<Value*> vals;
-    for (auto exprPtr : (*call.args).list) {
-        vals.push_back(emitExpression(*exprPtr));
+    for (auto exprKey : argList.list) {
+        vals.push_back(emitExpression(ast, ast.at(exprKey)));
     }
  
     std::vector<Type*> argTypes(objFunc.numArgs, builder.ir().getInt32Ty());
@@ -269,7 +268,7 @@ Value* Emit::emitCall(const ast::Call &call, bool resume) {
         sealBlock(cleanBlk);
 
         auto *val = builder.createInvoke(
-            call.getPos().line, call.getPos().column, normalBlk, unwindBlk, call.name.c_str(), vals);
+            call.pos.line, call.pos.column, normalBlk, unwindBlk, call.name.c_str(), vals);
 
         builder.setCurrentBlock(unwindBlk);
         auto *gv = builder.getGlobalVariable("_ZTIi");
@@ -284,18 +283,18 @@ Value* Emit::emitCall(const ast::Call &call, bool resume) {
         auto *lpSel = builder.ir().CreateExtractValue(lp, {1});
 
         auto *tid = builder.createCall(
-            call.getPos().line, call.getPos().column, "llvm.eh.typeid.for.p0", {gv});
+            call.pos.line, call.pos.column, "llvm.eh.typeid.for.p0", {gv});
 
         auto *match = builder.ir().CreateICmpEQ(tid, lpSel);
         builder.ir().CreateCondBr(match, catchBlk, errBlk);
 
         builder.setCurrentBlock(catchBlk);
         auto *payloadPtr = builder.createCall(
-            call.getPos().line, call.getPos().column, "__cxa_begin_catch", {lpPtr});
+            call.pos.line, call.pos.column, "__cxa_begin_catch", {lpPtr});
         auto *payload = builder.ir().CreateLoad(builder.ir().getInt32Ty(), payloadPtr, "payload");
         this->emitPrintf("caught exception: %d\n", {payload});
         builder.createCall(
-            call.getPos().line, call.getPos().column, "__cxa_end_catch", {});
+            call.pos.line, call.pos.column, "__cxa_end_catch", {});
         emitReturnNoBlock(emitInt32(0));
 
 
@@ -308,7 +307,7 @@ Value* Emit::emitCall(const ast::Call &call, bool resume) {
         builder.setCurrentBlock(unexpBlk);
         this->emitPrintf("unexpBlk\n", {});
         builder.createCall(
-            call.getPos().line, call.getPos().column, "__cxa_call_unexpected", {lpPtr});
+            call.pos.line, call.pos.column, "__cxa_call_unexpected", {lpPtr});
         builder.ir().CreateUnreachable();
 
 
@@ -319,30 +318,29 @@ Value* Emit::emitCall(const ast::Call &call, bool resume) {
         builder.setCurrentBlock(normalBlk);
         return val;
     } else {
-        return builder.createCall(call.getPos().line, call.getPos().column, call.name.c_str(), vals);
+        return builder.createCall(call.pos.line, call.pos.column, call.name.c_str(), vals);
     }
 }
 
-Value* Emit::emitExpression(const ast::Node &expr) {
-    if (auto *integer = dyn_cast<ast::Integer>(&expr)) {
-        return emitInt32(integer->integer);
+Value* Emit::emitExpression(Sparse<ast::Node> &ast, const ast::Node &expr) {
+    if (std::holds_alternative<ast::Integer>(expr)) {
+        return emitInt32( std::get<ast::Integer>(expr).integer);
     }
-    if (auto *floating = dyn_cast<ast::Floating>(&expr)) {
-        assert(false);
+    if (std::holds_alternative<ast::Prefix>(expr)) {
+        return emitPrefix(ast, std::get<ast::Prefix>(expr) );
     }
-    if (auto *infix = dyn_cast<ast::Infix>(&expr)) {
-        return emitInfix(*infix);
+    if (std::holds_alternative<ast::Infix>(expr)) {
+        return emitInfix(ast, std::get<ast::Infix>(expr));
     }
-    if (auto *prefix = dyn_cast<ast::Prefix>(&expr)) {
-        return emitPrefix(*prefix);
+    if (std::holds_alternative<ast::Call>(expr)) {
+        auto &call = std::get<ast::Call>(expr);
+        return emitCall(ast, call, true);
     }
-    if (auto *call = dyn_cast<ast::Call>(&expr)) {
-        return emitCall(*call, true);
-    }
-    if (auto *ident = dyn_cast<ast::Ident>(&expr)) {
-        auto object = look(ident->ident);
+    if (std::holds_alternative<ast::Ident>(expr)) {
+        auto &ident = std::get<ast::Ident>(expr);
+        auto object = look(ident.ident);
         if (std::holds_alternative<ObjVar>(object)) {
-            return readVariable(symTab.look(ident->ident), builder.getCurrentBlock());
+            return readVariable(symTab.look(ident.ident), builder.getCurrentBlock());
         }
 
         assert(false);
@@ -351,9 +349,24 @@ Value* Emit::emitExpression(const ast::Node &expr) {
     return nullptr;
 }
 
-Value* Emit::emitInfix(const ast::Infix &infix) {
-    auto *left = emitExpression(*infix.left);
-    auto *right = emitExpression(*infix.right);
+
+Value* Emit::emitPrefix(Sparse<ast::Node> &ast, const ast::Prefix &prefix) {
+    auto *right = emitExpression(ast, ast.at(prefix.right) );
+
+    if (right->getType() == builder.ir().getInt32Ty()) {
+        if (prefix.op == ast::Minus) {
+            return builder.ir().CreateSub(emitInt32(0), right, "prefix");
+        }
+        assert(false);
+    }
+    
+    assert(false);
+    return nullptr;
+}
+
+Value* Emit::emitInfix(Sparse<ast::Node> & ast, const ast::Infix &infix) {
+    auto *left = emitExpression(ast, ast.at(infix.left));
+    auto *right = emitExpression(ast, ast.at(infix.right));
 
     switch (infix.op) { 
     case ast::Plus: return builder.ir().CreateAdd(left, right,  "infix");
@@ -384,14 +397,14 @@ Value* Emit::emitInfix(const ast::Infix &infix) {
 
         // throw exception
         auto *eh = builder.createCall(
-            infix.getPos().line,
-            infix.getPos().column,
+            infix.pos.line,
+            infix.pos.column,
             "__cxa_allocate_exception",
             {builder.ir().getInt64(4)}
         );
         builder.ir().CreateStore(builder.ir().getInt32(123), eh);
         builder.createCall(
-            infix.getPos().line, infix.getPos().column,
+            infix.pos.line, infix.pos.column,
             "__cxa_throw",
             {eh, builder.getGlobalVariable("_ZTIi"),
             builder.getNullptr()}
@@ -424,19 +437,30 @@ Value* Emit::emitInfix(const ast::Infix &infix) {
     return nullptr;
 }
 
-Value* Emit::emitPrefix(const ast::Prefix &prefix) {
-    auto *right = emitExpression(*prefix.right);
 
-    if (right->getType() == builder.ir().getInt32Ty()) {
-        if (prefix.op == ast::Minus) {
-            return builder.ir().CreateSub(emitInt32(0), right, "prefix");
-        }
-        assert(false);
-    }
-    
-    assert(false);
-    return nullptr;
+Value* Emit::emitInt32(int n) {
+    return builder.ir().getInt32(n);
 }
+
+void Emit::startFunction(const std::string &name) {
+    assert(startFunctionName == "");
+    auto *fn = builder.createFunc(name.c_str(), {}, builder.ir().getInt32Ty());
+    fn->setPersonalityFn(builder.getFunc("__gxx_personality_v0"));
+    builder.setCurrentFunc(name.c_str());
+    startFunctionName = name;
+}
+
+void Emit::emitReturn(Value *value) {
+    BasicBlock *emptyBlock = builder.appendNewBlock();
+    builder.ir().CreateRet(value);
+    builder.setCurrentBlock(emptyBlock);
+}
+
+void Emit::emitReturnNoBlock(Value *value) {
+    builder.ir().CreateRet(value);
+}
+
+
 
 void Emit::define(const std::string &name, Object object) {
     assert(not symTab.isDefined(name));

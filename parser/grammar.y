@@ -1,9 +1,10 @@
 %require "3.2"
 %define parse.error verbose
-%define api.value.type { ast::Node* }
+%define api.value.type { Sparse<ast::Node>::Key }
 %locations
 
 %{
+#include "sparse.h"
 #include "ast.h"
 #include "lexer.h"
 #include "grammar.tab.hh"
@@ -19,14 +20,9 @@
 
 // this function is called for every token, returns token type (INTEGER, '+', '-'...)
 int yylex(yy::parser::semantic_type *, yy::parser::location_type *);
-ast::Program* bisonProgramResult;
 
-template <typename A, typename B>
-A* cast(B* ptr) {
-    auto *casted = llvm::dyn_cast<A>(ptr);
-    assert(casted != nullptr);
-    return casted;
-}
+Sparse<ast::Node>                     astResult;
+std::optional<Sparse<ast::Node>::Key> astResultProgramKey;
 
 TextPos textPos(const yy::parser::location_type &loc) {
     return TextPos(loc.begin.line, loc.begin.column, 0);
@@ -50,10 +46,11 @@ using namespace ast;
 
 %%
 
-program : topStmts1 { bisonProgramResult = new Program(textPos(@1), cast<List<Node>>($1)); };
 
-topStmts1 : topStmt           { $$ = new List<Node>(textPos(@1), $1); }
-          | topStmt topStmts1 { cast<List<Node>>($2)->cons($1); $$ = $2; };
+program : topStmts1 { astResultProgramKey = astResult.insert(Program(textPos(@1), $1)); };
+
+topStmts1 : topStmt           { $$ = astResult.insert(List(textPos(@1), $1)); }
+          | topStmt topStmts1 { ((ast::List*)&astResult.at($2))->cons($1); $$ = $2; };
 
 topStmt : expr NEWLINE { $$ = $1; }
         | block        { $$ = $1; };
@@ -61,57 +58,56 @@ topStmt : expr NEWLINE { $$ = $1; }
 
 expr
     : INTEGER              { $$ = $1; }
-    | FLOATING             { $$ = $1; }
+    | '-' expr             { $$ = astResult.insert(Prefix(textPos(@1), Minus, $2)); }
+    | expr '+' expr        { $$ = astResult.insert(Infix(textPos(@2), $1, Plus, $3)); }
+    | expr '-' expr        { $$ = astResult.insert(Infix(textPos(@2), $1, Minus, $3)); }
+    | expr '*' expr        { $$ = astResult.insert(Infix(textPos(@2), $1, Times, $3)); }
+    | expr '/' expr        { $$ = astResult.insert(Infix(textPos(@2), $1, Divide, $3)); }
+    | expr '<' expr        { $$ = astResult.insert(Infix(textPos(@2), $1, LT, $3)); }
+    | expr '>' expr        { $$ = astResult.insert(Infix(textPos(@2), $1, GT, $3)); }
+    | expr EqEq expr       { $$ = astResult.insert(Infix(textPos(@2), $1, EqEq, $3)); }
     | '(' expr ')'         { $$ = $2; }
     | ident                { $$ = $1; }
-    | ident '(' exprs1 ')' { $$ = new Call(textPos(@2), cast<Ident>($1)->ident, cast<List<Node>>($3)); }
-    | ident '(' ')'        { $$ = new Call(textPos(@2), cast<Ident>($1)->ident, new List<Node>(textPos(@2))); }
-    | '-' expr             { $$ = new Prefix(textPos(@1), Minus, ($2)); }
-    | expr '+' expr        { $$ = new Infix(textPos(@2), $1, Plus, $3); }
-    | expr '-' expr        { $$ = new Infix(textPos(@2), $1, Minus, $3); }
-    | expr '*' expr        { $$ = new Infix(textPos(@2), $1, Times, $3); }
-    | expr '/' expr        { $$ = new Infix(textPos(@2), $1, Divide, $3); }
-    | expr '<' expr        { $$ = new Infix(textPos(@2), $1, LT, $3); }
-    | expr '>' expr        { $$ = new Infix(textPos(@2), $1, GT, $3); }
-    | expr EqEq expr       { $$ = new Infix(textPos(@2), $1, EqEq, $3); };
+    | ident '(' exprs1 ')' { $$ = astResult.insert(Call(textPos(@2), ((ast::Ident*)&astResult.at($1))->ident, $3)); }
+    | ident '(' ')'        { $$ = astResult.insert(Call(textPos(@2), ((ast::Ident*)&astResult.at($1))->ident, astResult.insert(List(textPos(@2))))); };
 
-    // error ast node can go here
-    //| error               { llvm::errs() << "syntax error in expr\n"; yyclearin; };
+//    // error ast node can go here
+//    //| error               { llvm::errs() << "syntax error in expr\n"; yyclearin; };
 
 
 line
-    : Return expr        { $$ = new Return(textPos(@1), $2); }
-    | ident '=' expr     { $$ = new Set(textPos(@2), cast<Ident>($1)->ident, $3); }
-    | Let ident '=' expr { $$ = new Let(textPos(@1), cast<Ident>($2)->ident, $4); };
+    : Return expr        { $$ = astResult.insert(Return(textPos(@1), $2)); }
+    | ident '=' expr     { $$ = astResult.insert(Set(textPos(@2), ((ast::Ident*)&astResult.at($1))->ident, $3)); }
+    | Let ident '=' expr { $$ = astResult.insert(Let(textPos(@1), ((ast::Ident*)&astResult.at($2))->ident, $4)); };
 
 block
     : fn ident '(' idents ')' INDENT stmts1 DEDENT
-        { $$ = new FnDef(textPos(@1), cast<Ident>($2), cast<List<Ident>>($4), cast<List<Node>>($7)); }
+        { $$ = astResult.insert(FnDef(textPos(@1), ((ast::Ident*)&astResult.at($2))->ident, $4, $7)); }
     | If expr INDENT stmts1 DEDENT
-        { $$ = new If(textPos(@1), $2, cast<List<Node>>($4), new List<Node>(textPos(@1))); }
+        { $$ = astResult.insert(If(textPos(@1), $2, $4, astResult.insert(List(textPos(@1))))); }
     | If expr INDENT stmts1 DEDENT Else INDENT stmts1 DEDENT
-        { $$ = new If(textPos(@1), $2, cast<List<Node>>($4), cast<List<Node>>($8)); }
+        { $$ = astResult.insert(If(textPos(@1), $2, $4, $8)); }
     | For expr INDENT stmts1 DEDENT 
-        { $$ = new For(textPos(@1), $2, cast<List<Node>>($4)); };
+        { $$ = astResult.insert(For(textPos(@1), $2, $4)); };
 
 stmts1
-    : line NEWLINE        { $$ = new List<Node>(textPos(@1), $1); }
-    | block               { $$ = new List<Node>(textPos(@1), $1); }
-    | line NEWLINE stmts1 { cast<List<Node>>($3)->cons($1); $$ = $3; }
-    | block        stmts1 { cast<List<Node>>($2)->cons($1); $$ = $2; };
+    : line NEWLINE        { $$ = astResult.insert(List(textPos(@1), $1)); }
+    | block               { $$ = astResult.insert(List(textPos(@1), $1)); }
+    | line NEWLINE stmts1 { ((ast::List*)&astResult.at($3))->cons($1); $$ = $3; }
+    | block        stmts1 { ((ast::List*)&astResult.at($2))->cons($1); $$ = $2; };
 
 
 idents
     : idents1 { $$ = $1; }
-    |         { $$ = new List<Ident>(TextPos(0, 0, 0)); };
+    |         { $$ = astResult.insert(List(TextPos(0, 0, 0))); };
 idents1
-    : ident             { $$ = new List<Ident>(textPos(@1), cast<Ident>($1)); }
-    | ident ',' idents1 { cast<List<Ident>>($3)->cons(cast<Ident>($1)); $$ = $3; };
+    : ident             { $$ = astResult.insert(List(textPos(@1), $1)); }
+    | ident ',' idents1 { ((ast::List*)&astResult.at($3))->cons($1); $$ = $3; };
 
 
 exprs1
-    : expr            { $$ = new List<Node>(textPos(@1), $1); }
-    | expr ',' exprs1 { cast<List<Node>>($3)->cons($1); $$ = $3; };
+    : expr            { $$ = astResult.insert(List(textPos(@1), $1)); }
+    | expr ',' exprs1 { ((ast::List*)&astResult.at($3))->cons($1); $$ = $3; };
     
 %%
 
