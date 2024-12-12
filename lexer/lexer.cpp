@@ -4,7 +4,7 @@
 #include <algorithm>
 #include <memory>
 
-Lexer2::Lexer2() : curPos(0, 0, 0) {
+Lexer2::Lexer2() : curPos(1, 1, 1) {
     indentStack = {""};
 }
 

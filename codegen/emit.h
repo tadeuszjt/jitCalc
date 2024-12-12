@@ -4,6 +4,7 @@
 #include "ast.h"
 #include "symbols.h"
 #include "sparse.h"
+#include "lexer.h"
 
 #include <set>
 #include <map>

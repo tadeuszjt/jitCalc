@@ -26,13 +26,14 @@ public:
     );
 
     llvm::Function*       createFuncDeclaration(const std::string&, llvm::Type*, const std::vector<llvm::Type*> &, bool);
-    llvm::Function*       createFunc(const std::string &, const std::vector<llvm::Type*> &argTypes, llvm::Type *returnType);
+    llvm::Function*       createFunc(TextPos pos, const std::string &, const std::vector<llvm::Type*> &argTypes, llvm::Type *returnType);
     void                  setCurrentFunc(const std::string &);
     llvm::Argument*       getCurrentFuncArg(size_t argIndex);
     llvm::Function*       getFunc(const std::string &name);
 
     void                  createGlobalDeclaration(const char*, llvm::Type*);
-    llvm::Value*          createCall(size_t line, size_t column, const char *, const std::vector<llvm::Value*> &args);
+    llvm::Value*          createCall(const char *, const std::vector<llvm::Value*> &args);
+    llvm::Value*          createCall(TextPos pos, const char *, const std::vector<llvm::Value*> &args);
     llvm::Value*          createInvoke(size_t line, size_t column, llvm::BasicBlock *, llvm::BasicBlock*, const char *, const std::vector<llvm::Value*> &args);
     void                  createTrap();
     llvm::GlobalVariable* getGlobalVariable(const char* name);

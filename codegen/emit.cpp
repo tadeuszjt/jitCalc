@@ -12,7 +12,7 @@ void Emit::emitPrintf(const char* fmt, std::vector<llvm::Value*> args) {
     for (auto arg : args) {
         args2.push_back(arg);
     }
-    builder.createCall(0, 0, "printf", args2);
+    builder.createCall("printf", args2);
 }
 
 
@@ -195,7 +195,7 @@ void Emit::emitFuncDef(Sparse<ast::Node> &ast, const ast::FnDef& fnDef) {
     funcCurrent = fnDef.name;
 
     std::vector<Type*> argTypes(argsList.size(), builder.ir().getInt32Ty());
-    auto *fn = builder.createFunc(fnDef.name.c_str(), argTypes, builder.ir().getInt32Ty());
+    auto *fn = builder.createFunc(fnDef.pos, fnDef.name.c_str(), argTypes, builder.ir().getInt32Ty());
     fn->setPersonalityFn(builder.getFunc("__gxx_personality_v0"));
     builder.setCurrentFunc(fnDef.name.c_str());
     BasicBlock *entry = builder.getCurrentBlock();
@@ -232,11 +232,7 @@ void Emit::emitFuncDef(Sparse<ast::Node> &ast, const ast::FnDef& fnDef) {
 
 
 Value* Emit::emitCall(Sparse<ast::Node> &ast, const ast::Call &call, bool resume) {
-    auto object = look(call.name);
-    assert(std::holds_alternative<ObjFunc>(object));
-
-    auto objFunc = std::get<ObjFunc>(object);
-
+    auto objFunc = std::get<ObjFunc>(look(call.name));
     auto &argList = std::get<ast::List>(ast.at(call.args));
 
     assert(argList.size() == objFunc.numArgs);
@@ -282,19 +278,16 @@ Value* Emit::emitCall(Sparse<ast::Node> &ast, const ast::Call &call, bool resume
         auto *lpPtr = builder.ir().CreateExtractValue(lp, {0});
         auto *lpSel = builder.ir().CreateExtractValue(lp, {1});
 
-        auto *tid = builder.createCall(
-            call.pos.line, call.pos.column, "llvm.eh.typeid.for.p0", {gv});
+        auto *tid = builder.createCall(call.pos, "llvm.eh.typeid.for.p0", {gv});
 
         auto *match = builder.ir().CreateICmpEQ(tid, lpSel);
         builder.ir().CreateCondBr(match, catchBlk, errBlk);
 
         builder.setCurrentBlock(catchBlk);
-        auto *payloadPtr = builder.createCall(
-            call.pos.line, call.pos.column, "__cxa_begin_catch", {lpPtr});
+        auto *payloadPtr = builder.createCall(call.pos, "__cxa_begin_catch", {lpPtr});
         auto *payload = builder.ir().CreateLoad(builder.ir().getInt32Ty(), payloadPtr, "payload");
         this->emitPrintf("caught exception: %d\n", {payload});
-        builder.createCall(
-            call.pos.line, call.pos.column, "__cxa_end_catch", {});
+        builder.createCall(call.pos, "__cxa_end_catch", {});
         emitReturnNoBlock(emitInt32(0));
 
 
@@ -306,19 +299,18 @@ Value* Emit::emitCall(Sparse<ast::Node> &ast, const ast::Call &call, bool resume
 
         builder.setCurrentBlock(unexpBlk);
         this->emitPrintf("unexpBlk\n", {});
-        builder.createCall(
-            call.pos.line, call.pos.column, "__cxa_call_unexpected", {lpPtr});
+        builder.createCall(call.pos, "__cxa_call_unexpected", {lpPtr});
         builder.ir().CreateUnreachable();
 
 
         builder.setCurrentBlock(cleanBlk);
-        this->emitPrintf("cleanBlk\n", {});
+        emitPrintf("cleanBlk\n", {});
         builder.ir().CreateResume(lp);
 
         builder.setCurrentBlock(normalBlk);
         return val;
     } else {
-        return builder.createCall(call.pos.line, call.pos.column, call.name.c_str(), vals);
+        return builder.createCall(call.pos, call.name.c_str(), vals);
     }
 }
 
@@ -397,14 +389,13 @@ Value* Emit::emitInfix(Sparse<ast::Node> & ast, const ast::Infix &infix) {
 
         // throw exception
         auto *eh = builder.createCall(
-            infix.pos.line,
-            infix.pos.column,
+            infix.pos,
             "__cxa_allocate_exception",
             {builder.ir().getInt64(4)}
         );
         builder.ir().CreateStore(builder.ir().getInt32(123), eh);
         builder.createCall(
-            infix.pos.line, infix.pos.column,
+            infix.pos,
             "__cxa_throw",
             {eh, builder.getGlobalVariable("_ZTIi"),
             builder.getNullptr()}
@@ -444,7 +435,7 @@ Value* Emit::emitInt32(int n) {
 
 void Emit::startFunction(const std::string &name) {
     assert(startFunctionName == "");
-    auto *fn = builder.createFunc(name.c_str(), {}, builder.ir().getInt32Ty());
+    auto *fn = builder.createFunc(TextPos(0, 0, 0), name.c_str(), {}, builder.ir().getInt32Ty());
     fn->setPersonalityFn(builder.getFunc("__gxx_personality_v0"));
     builder.setCurrentFunc(name.c_str());
     startFunctionName = name;

@@ -29,16 +29,16 @@ ModuleBuilder::ModuleBuilder(
     assert(nullptr != diFile);
 
     diCompileUnit = diBuilder.createCompileUnit(
-        llvm::dwarf::DW_LANG_Modula2,
+        llvm::dwarf::DW_LANG_C,
         diFile,
         "jitCalc",
         false,
         "",
-        1,
-        "",
-        llvm::DICompileUnit::DebugEmissionKind::FullDebug
+        0
     );
     assert(nullptr != diCompileUnit);
+
+    llModule->addModuleFlag(llvm::Module::Warning, "Debug Info Version", llvm::DEBUG_METADATA_VERSION);
 }
 
 
@@ -76,14 +76,19 @@ llvm::GlobalVariable* ModuleBuilder::getGlobalVariable(const char* name) {
     return llModule->getGlobalVariable(name);
 }
 
-Value* ModuleBuilder::createCall(size_t line, size_t column, const char *name, const std::vector<Value*> &args) {
+
+Value* ModuleBuilder::createCall(const char *name, const std::vector<Value*> &args) {
+    assert(funcDefs.find(name) != funcDefs.end());
+    return irBuilder.CreateCall(llModule->getFunction(name), args);
+}
+
+Value* ModuleBuilder::createCall(TextPos pos, const char *name, const std::vector<Value*> &args) {
     assert(funcDefs.find(name) != funcDefs.end());
     auto *call = irBuilder.CreateCall(llModule->getFunction(name), args);
 
     if (nullptr != funcDefs[funcDefCurrent].diFunc) {
-        auto *diLoc = llvm::DILocation::get(
-            llModule->getContext(), line, column, funcDefs[funcDefCurrent].diFunc);
-        call->setDebugLoc(diLoc);
+        call->setDebugLoc(llvm::DILocation::get(
+            llModule->getContext(), pos.line, pos.column, funcDefs[funcDefCurrent].diFunc));
     }
 
     return call;
@@ -170,6 +175,7 @@ Function* ModuleBuilder::createFuncDeclaration(
 
 
 Function* ModuleBuilder::createFunc(
+    TextPos pos,
     const std::string &name,
     const std::vector<Type*> &argTypes,
     Type *returnType
@@ -196,9 +202,9 @@ Function* ModuleBuilder::createFunc(
         name,
         name, // mangled name
         diFile,
-        0, // line no
+        pos.line, // line no
         diFuncType,
-        1, // scope line
+        pos.line, // scope line
         llvm::DISubprogram::FlagPublic,
         llvm::DISubprogram::SPFlagDefinition
     );
@@ -208,8 +214,8 @@ Function* ModuleBuilder::createFunc(
     funcDefs[name].diScope = diBuilder.createLexicalBlock(
         funcDefs[name].diFunc,
         diFile,
-        0, // line no
-        0  // col no
+        pos.line, // line no
+        pos.column  // col no
     ); 
 
     assert(nullptr != funcDefs[name].diScope);

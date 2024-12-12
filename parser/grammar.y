@@ -68,8 +68,8 @@ expr
     | expr EqEq expr       { $$ = astResult.insert(Infix(textPos(@2), $1, EqEq, $3)); }
     | '(' expr ')'         { $$ = $2; }
     | ident                { $$ = $1; }
-    | ident '(' exprs1 ')' { $$ = astResult.insert(Call(textPos(@2), ((ast::Ident*)&astResult.at($1))->ident, $3)); }
-    | ident '(' ')'        { $$ = astResult.insert(Call(textPos(@2), ((ast::Ident*)&astResult.at($1))->ident, astResult.insert(List(textPos(@2))))); };
+    | ident '(' exprs1 ')' { $$ = astResult.insert(Call(textPos(@2), ((ast::Ident*)&astResult.at($1))->ident, $3)); astResult.remove($1); }
+    | ident '(' ')'        { $$ = astResult.insert(Call(textPos(@2), ((ast::Ident*)&astResult.at($1))->ident, astResult.insert(List(textPos(@2))))); astResult.remove($1); };
 
 //    // error ast node can go here
 //    //| error               { llvm::errs() << "syntax error in expr\n"; yyclearin; };
@@ -77,12 +77,12 @@ expr
 
 line
     : Return expr        { $$ = astResult.insert(Return(textPos(@1), $2)); }
-    | ident '=' expr     { $$ = astResult.insert(Set(textPos(@2), ((ast::Ident*)&astResult.at($1))->ident, $3)); }
-    | Let ident '=' expr { $$ = astResult.insert(Let(textPos(@1), ((ast::Ident*)&astResult.at($2))->ident, $4)); };
+    | ident '=' expr     { $$ = astResult.insert(Set(textPos(@2), ((ast::Ident*)&astResult.at($1))->ident, $3)); astResult.remove($1); }
+    | Let ident '=' expr { $$ = astResult.insert(Let(textPos(@1), ((ast::Ident*)&astResult.at($2))->ident, $4)); astResult.remove($2); };
 
 block
     : fn ident '(' idents ')' INDENT stmts1 DEDENT
-        { $$ = astResult.insert(FnDef(textPos(@1), ((ast::Ident*)&astResult.at($2))->ident, $4, $7)); }
+        { $$ = astResult.insert(FnDef(textPos(@1), ((ast::Ident*)&astResult.at($2))->ident, $4, $7)); astResult.remove($2); }
     | If expr INDENT stmts1 DEDENT
         { $$ = astResult.insert(If(textPos(@1), $2, $4, astResult.insert(List(textPos(@1))))); }
     | If expr INDENT stmts1 DEDENT Else INDENT stmts1 DEDENT
