@@ -95,8 +95,7 @@ Value* ModuleBuilder::createCall(TextPos pos, const char *name, const std::vecto
 }
 
 llvm::Value* ModuleBuilder::createInvoke(
-    size_t line,
-    size_t column,
+    TextPos pos,
     llvm::BasicBlock *normalDest,
     llvm::BasicBlock* unwindDest,
     const char *name,
@@ -106,7 +105,7 @@ llvm::Value* ModuleBuilder::createInvoke(
 
     if (nullptr != funcDefs[funcDefCurrent].diFunc) {
         auto *diLoc = llvm::DILocation::get(
-            llModule->getContext(), line, column, funcDefs[funcDefCurrent].diFunc);
+            llModule->getContext(), pos.line, pos.column, funcDefs[funcDefCurrent].diFunc);
         invoke->setDebugLoc(diLoc);
     }
 
@@ -266,9 +265,13 @@ Sparse<ModuleBuilder::VarLocal>::Key ModuleBuilder::createArgDebug(const char *n
 }
 
 
-void ModuleBuilder::setVarLocalDebugValue(Sparse<ModuleBuilder::VarLocal>::Key key, llvm::Value *value) {
+void ModuleBuilder::setVarLocalDebugValue(
+    TextPos pos,
+    Sparse<ModuleBuilder::VarLocal>::Key key,
+    llvm::Value *value
+) {
     auto *diLoc = llvm::DILocation::get(
-        llModule->getContext(), 0, 0, funcDefs[funcDefCurrent].diFunc);
+        llModule->getContext(), pos.line, pos.column, funcDefs[funcDefCurrent].diFunc);
     diBuilder.insertDbgValueIntrinsic(
         value,
         varLocals.at(key).diLocalVar,

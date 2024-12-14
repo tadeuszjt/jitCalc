@@ -34,7 +34,7 @@ public:
     void                  createGlobalDeclaration(const char*, llvm::Type*);
     llvm::Value*          createCall(const char *, const std::vector<llvm::Value*> &args);
     llvm::Value*          createCall(TextPos pos, const char *, const std::vector<llvm::Value*> &args);
-    llvm::Value*          createInvoke(size_t line, size_t column, llvm::BasicBlock *, llvm::BasicBlock*, const char *, const std::vector<llvm::Value*> &args);
+    llvm::Value*          createInvoke(TextPos pos, llvm::BasicBlock *, llvm::BasicBlock*, const char *, const std::vector<llvm::Value*> &args);
     void                  createTrap();
     llvm::GlobalVariable* getGlobalVariable(const char* name);
     llvm::BasicBlock*     appendNewBlock(const char* suggestion = "block");
@@ -43,7 +43,7 @@ public:
 
     Sparse<VarLocal>::Key createVarLocalDebug(const char *name);
     Sparse<VarLocal>::Key createArgDebug(const char *name, int argIdx);
-    void                  setVarLocalDebugValue(Sparse<VarLocal>::Key key, llvm::Value *value);
+    void                  setVarLocalDebugValue(TextPos pos, Sparse<VarLocal>::Key key, llvm::Value *value);
 
 
     void              printModule();

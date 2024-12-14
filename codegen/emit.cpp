@@ -86,7 +86,7 @@ void Emit::emitStmt(Sparse<ast::Node> &ast, const ast::Node &stmt) {
         auto &let = std::get<ast::Let>(stmt);
         auto *expr = emitExpression(ast, ast.at(let.expr));
         auto key = builder.createVarLocalDebug(let.name.c_str());
-        builder.setVarLocalDebugValue(key, expr);
+        builder.setVarLocalDebugValue(let.pos, key, expr);
 
         define(let.name, ObjVar{.debugKey = key});
         writeVariable(symTab.look(let.name), builder.getCurrentBlock(), expr);
@@ -97,7 +97,7 @@ void Emit::emitStmt(Sparse<ast::Node> &ast, const ast::Node &stmt) {
         auto obj = look(set.name);
         assert(std::holds_alternative<ObjVar>(obj));
 
-        builder.setVarLocalDebugValue(std::get<ObjVar>(obj).debugKey, expr);
+        builder.setVarLocalDebugValue(set.pos, std::get<ObjVar>(obj).debugKey, expr);
         writeVariable(symTab.look(set.name), builder.getCurrentBlock(), expr);
 
     } else if (std::holds_alternative<ast::If>(stmt)) {
@@ -209,7 +209,7 @@ void Emit::emitFuncDef(Sparse<ast::Node> &ast, const ast::FnDef& fnDef) {
 
         define(arg.ident, ObjVar{.debugKey = key});
 
-        builder.setVarLocalDebugValue(key, builder.getCurrentFuncArg(i));
+        builder.setVarLocalDebugValue(arg.pos, key, builder.getCurrentFuncArg(i));
         writeVariable(symTab.look(arg.ident), entry, builder.getCurrentFuncArg(i));
     }
 
@@ -263,8 +263,7 @@ Value* Emit::emitCall(Sparse<ast::Node> &ast, const ast::Call &call, bool resume
         sealBlock(unexpBlk);
         sealBlock(cleanBlk);
 
-        auto *val = builder.createInvoke(
-            call.pos.line, call.pos.column, normalBlk, unwindBlk, call.name.c_str(), vals);
+        auto *val = builder.createInvoke(call.pos, normalBlk, unwindBlk, call.name.c_str(), vals);
 
         builder.setCurrentBlock(unwindBlk);
         auto *gv = builder.getGlobalVariable("_ZTIi");
