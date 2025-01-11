@@ -76,6 +76,17 @@ llvm::GlobalVariable* ModuleBuilder::getGlobalVariable(const char* name) {
     return llModule->getGlobalVariable(name);
 }
 
+Value* ModuleBuilder::createAdd(TextPos pos, Value* left, Value *right) {
+    assert(nullptr != left && nullptr != right);
+    llvm::Value *value = irBuilder.CreateAdd(left, right);
+
+    if (auto *inst = dyn_cast<llvm::Instruction>(value); nullptr != inst) {
+        assert(nullptr != funcDefs[funcDefCurrent].diFunc);
+        inst->setDebugLoc(llvm::DILocation::get(
+            llModule->getContext(), pos.line, pos.column, funcDefs[funcDefCurrent].diFunc));
+    }
+    return value;
+}
 
 Value* ModuleBuilder::createCall(const char *name, const std::vector<Value*> &args) {
     assert(funcDefs.find(name) != funcDefs.end());

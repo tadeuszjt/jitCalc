@@ -1,8 +1,8 @@
 A simple imperative language with indentation-specific syntax, functions, control-flow and jit-based compilation using C++, LLVM, Bison and CMake.
 
-Building LLVM for this project requires RTTI for the cl::opt library and -j1 during install to prevent memory running out on WSL.
+Building LLVM for this project requires RTTI for the cl::opt library and -j1 during install to prevent memory running out on WSL. Zlib is for lldb usage.
 ```
-cmake -S llvm -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DLLVM_ENABLE_PROJECTS="clang;lldb;lld" -DLLVM_ENABLE_RTTI=ON
+cmake -S llvm -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DLLVM_ENABLE_PROJECTS="clang;lldb;lld" -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_ZLIB=ON
 ninja -C build -j1 install
 ```
 

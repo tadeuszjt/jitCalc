@@ -26,14 +26,11 @@ public:
     Emit(
         llvm::LLVMContext &context,
         const std::string &name,
+        const std::string &startFunctionName,
         const std::filesystem::path &debugFilePath = "jitCalc"
     );
 
-    void startFunction(const std::string &name);
-    void emitPrintf(const char* fmt, std::vector<llvm::Value*> args);
-
     void         emitProgram(Sparse<ast::Node>::Key, Sparse<ast::Node> &);
-
     void         emitStmt(Sparse<ast::Node> &, const ast::Node &);
     void         emitFuncDef(Sparse<ast::Node> &, const ast::FnDef &);
     llvm::Value* emitExpression(Sparse<ast::Node> &, const ast::Node &);
@@ -43,6 +40,7 @@ public:
     llvm::Value* emitCall(Sparse<ast::Node> &, const ast::Call&, bool);
     void         emitReturn(llvm::Value *value);
     void         emitReturnNoBlock(llvm::Value *value);
+    void         emitPrintf(const char* fmt, std::vector<llvm::Value*> args);
 
     std::vector<std::pair<std::string, ObjFunc>> getFuncDefs() {
         std::vector<std::pair<std::string, ObjFunc>> funcDefs;
@@ -70,7 +68,6 @@ public:
 
     ModuleBuilder &mod() { return builder; }
 private:
-    std::string startFunctionName;
     std::string funcCurrent;
     ModuleBuilder builder;
 

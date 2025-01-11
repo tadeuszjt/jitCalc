@@ -34,6 +34,7 @@ public:
     void                  createGlobalDeclaration(const char*, llvm::Type*);
     llvm::Value*          createCall(const char *, const std::vector<llvm::Value*> &args);
     llvm::Value*          createCall(TextPos pos, const char *, const std::vector<llvm::Value*> &args);
+    llvm::Value*          createAdd(TextPos pos, llvm::Value* left, llvm::Value* right);
     llvm::Value*          createInvoke(TextPos pos, llvm::BasicBlock *, llvm::BasicBlock*, const char *, const std::vector<llvm::Value*> &args);
     void                  createTrap();
     llvm::GlobalVariable* getGlobalVariable(const char* name);

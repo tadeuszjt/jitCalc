@@ -95,9 +95,8 @@ int main(int argc, char **argv) {
         assert(nullptr != prog);
 
         auto lock = context.getLock();
-        Emit emit(*context.getContext(), "jitCalc_child", filePath.c_str());
+        Emit emit(*context.getContext(), "jitCalc_child", "main", filePath.c_str());
 
-        emit.startFunction("main");
         emit.emitProgram(programKey, *prog);
         emit.mod().finaliseDebug();
 
@@ -136,11 +135,10 @@ int main(int argc, char **argv) {
             }
 
             auto lock = context.getLock();
-            Emit emit(*context.getContext(), "jitCalc_child");
+            std::string funcName = "main" + std::to_string(i);
+            Emit emit(*context.getContext(), "jitCalc_child", funcName);
             emit.addFuncDefs(funcDefs);
 
-            std::string funcName = "main" + std::to_string(i);
-            emit.startFunction(funcName);
             emit.emitProgram(programKey, *prog);
 
             emit.mod().printModule();

@@ -16,9 +16,15 @@ void Emit::emitPrintf(const char* fmt, std::vector<llvm::Value*> args) {
 }
 
 
-Emit::Emit(LLVMContext &context, const std::string &name, const std::filesystem::path &debugFilePath)
-    : builder(context, name, debugFilePath) {
-
+Emit::Emit(
+    LLVMContext &context,
+    const std::string &name,
+    const std::string &startFunctionName,
+    const std::filesystem::path &debugFilePath
+)
+    : builder(context, name, debugFilePath)
+    , funcCurrent(startFunctionName)
+{
     builder.createFuncDeclaration("printf", builder.ir().getInt32Ty(), {builder.ir().getPtrTy()}, true);
     builder.createFuncDeclaration(
         "__cxa_allocate_exception",
@@ -50,8 +56,10 @@ Emit::Emit(LLVMContext &context, const std::string &name, const std::filesystem:
 
     builder.createGlobalDeclaration("_ZTIi", builder.ir().getPtrTy());
 
+    auto *fn = builder.createFunc(TextPos(0, 0, 0), funcCurrent.c_str(), {}, builder.ir().getInt32Ty());
+    fn->setPersonalityFn(builder.getFunc("__gxx_personality_v0"));
+    builder.setCurrentFunc(funcCurrent.c_str());
 }
-
 
 
 void Emit::emitProgram(Sparse<ast::Node>::Key key, Sparse<ast::Node> &ast) {
@@ -221,11 +229,7 @@ void Emit::emitFuncDef(Sparse<ast::Node> &ast, const ast::FnDef& fnDef) {
     symTab.popScope();
     emitReturnNoBlock(emitInt32(0));
     funcCurrent = funcOld;
-    if (funcCurrent == "") {
-        builder.setCurrentFunc(startFunctionName);
-    } else {
-        builder.setCurrentFunc(funcCurrent.c_str());
-    }
+    builder.setCurrentFunc(funcCurrent.c_str());
 }
 
 
@@ -360,7 +364,7 @@ Value* Emit::emitInfix(Sparse<ast::Node> & ast, const ast::Infix &infix) {
     auto *right = emitExpression(ast, ast.at(infix.right));
 
     switch (infix.op) { 
-    case ast::Plus: return builder.ir().CreateAdd(left, right,  "infix");
+    case ast::Plus: return builder.createAdd(infix.pos, left, right);
     case ast::Minus: return builder.ir().CreateSub(left, right,  "infix");
     case ast::Times: return builder.ir().CreateMul(left, right,  "infix");
     case ast::Divide: {
@@ -430,14 +434,6 @@ Value* Emit::emitInfix(Sparse<ast::Node> & ast, const ast::Infix &infix) {
 
 Value* Emit::emitInt32(int n) {
     return builder.ir().getInt32(n);
-}
-
-void Emit::startFunction(const std::string &name) {
-    assert(startFunctionName == "");
-    auto *fn = builder.createFunc(TextPos(0, 0, 0), name.c_str(), {}, builder.ir().getInt32Ty());
-    fn->setPersonalityFn(builder.getFunc("__gxx_personality_v0"));
-    builder.setCurrentFunc(name.c_str());
-    startFunctionName = name;
 }
 
 void Emit::emitReturn(Value *value) {
