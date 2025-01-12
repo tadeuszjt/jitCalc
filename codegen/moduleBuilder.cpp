@@ -1,10 +1,11 @@
-#include "moduleBuilder.h"
 #include <cmath>
 #include <iterator>
 
 #include <llvm/Passes/PassBuilder.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/IR/Verifier.h>
+#include "moduleBuilder.h"
+#include "PPProfiler.h"
 
 using namespace llvm;
 
@@ -56,7 +57,13 @@ void ModuleBuilder::optimiseModule() {
     PB.registerLoopAnalyses(LAM);
     PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
 
+    RegisterCB(PB);
+
     ModulePassManager MPM = PB.buildPerModuleDefaultPipeline(OptimizationLevel::O2);
+
+    //llvm::cantFail(PB.parsePassPipeline(MPM, "ppprofiler"));
+
+
     MPM.run(*llModule, MAM);
 }
 

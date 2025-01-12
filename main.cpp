@@ -28,6 +28,7 @@ cl::opt<bool>        replMode("i", cl::desc("Interactive REPL Mode"));
 cl::opt<bool>        emitLlFile("l", cl::desc("Emit LLVM IR file"));
 cl::opt<std::string> inputFile(cl::Positional, cl::desc("<input file>"));
 
+
 std::unique_ptr<llvm::MemoryBuffer> getNextInput() {
     std::string input;
 
@@ -80,6 +81,8 @@ int main(int argc, char **argv) {
     auto jit = cantFail(orc::LLJITBuilder().create());
     auto &dyLib = cantFail(jit->createJITDylib("jitCalc_dyLib"));
 
+    //cantFail(jit->addObjectFile(dyLib, std::move(*MemoryBuffer::getFile("../passes/ppprofiler_runtime.o"))));
+
     std::vector<std::pair<std::string, ObjFunc>> funcDefs;
 
     if (not replMode) {
@@ -100,10 +103,10 @@ int main(int argc, char **argv) {
         emit.emitProgram(programKey, *prog);
         emit.mod().finaliseDebug();
 
-        emit.mod().printModule();
         puts("");
         emit.mod().verifyModule();
-        //emit.mod().optimiseModule();
+        emit.mod().optimiseModule();
+        emit.mod().printModule();
 
         if (emitLlFile) {
             auto llFilePath = filePath;

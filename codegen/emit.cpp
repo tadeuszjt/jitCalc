@@ -369,12 +369,10 @@ Value* Emit::emitInfix(Sparse<ast::Node> & ast, const ast::Infix &infix) {
     case ast::Times: return builder.ir().CreateMul(left, right,  "infix");
     case ast::Divide: {
         // function has exception
-        if (funcCurrent != "") {
-            auto object = look(funcCurrent);
-            assert(std::holds_alternative<ObjFunc>(object));
-            auto objFn = std::get<ObjFunc>(object);
-            redefine(funcCurrent, ObjFunc{objFn.numArgs, true});
-        }
+        auto object = look(funcCurrent);
+        assert(std::holds_alternative<ObjFunc>(object));
+        auto objFn = std::get<ObjFunc>(object);
+        redefine(funcCurrent, ObjFunc{objFn.numArgs, true});
 
 
         // throw exception on 0
